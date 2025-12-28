@@ -31,14 +31,14 @@ The goal is not visual realism, but accurate and reproducible lap time estimatio
 
 ## Project Structure
 
-include/    - Public headers and data definitions  
-src/        - Implementation  
-physics/    - Stateless force and constraint calculations  
-sim/        - Simulation orchestration and integration loop  
-models/     - Pure data structures  
-tests/      - Determinism and physics unit tests  
-data/       - Track and vehicle input files  
-tools/      - Benchmarking and profiling utilities
+- include/    - Public headers and data definitions  
+- src/        - Implementation  
+- physics/    - Stateless force and constraint calculations  
+- sim/        - Simulation orchestration and integration loop  
+- models/     - Pure data structures  
+- tests/      - Determinism and physics unit tests  
+- data/       - Track and vehicle input files  
+- tools/      - Benchmarking and profiling utilities
 
 ## Determinism & Correctness
 
