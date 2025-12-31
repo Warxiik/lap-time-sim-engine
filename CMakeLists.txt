@@ -21,12 +21,12 @@ add_executable(Lap_Time_Sim_Engine
         include/physics/aero.hpp
         include/physics/tyres.hpp
         include/sim/simulator.hpp
-        include/sim/step.hpp
+        include/sim/integrate_step.hpp
         include/sim/driver_model.hpp
         src/io/track_loader.cpp
         src/io/telemetry_writer.cpp
         src/sim/simulator.cpp
-        src/sim/step.cpp
+        src/sim/integrate_step.cpp
         src/sim/driver_model.cpp
         src/physics/longitudinal.cpp
         src/physics/lateral.cpp
