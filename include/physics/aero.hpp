@@ -1,8 +1,20 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_AERO_HPP
-#define LAP_TIME_SIM_ENGINE_AERO_HPP
+#include "models/vehicle.hpp"
+#include "models/car_state.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_AERO_HPP
+namespace physics {
+    namespace aero {
+        /// Computes aerodynamic drag force (N)
+        double drag_force (
+            const VehicleParam& vehicle,
+            const CarState& state
+        );
+
+        /// Computes aerodynamic downforce (N)
+        double downforce (
+            const VehicleParam& vehicle,
+            const CarState& state
+        );
+    } // namespace aero
+} // namespace physics

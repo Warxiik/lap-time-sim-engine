@@ -1,8 +1,30 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_LONGITUDINAL_HPP
-#define LAP_TIME_SIM_ENGINE_LONGITUDINAL_HPP
+#include "models/vehicle.hpp"
+#include "models/car_state.hpp"
+#include "models/control.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_LONGITUDINAL_HPP
+namespace physics {
+    namespace longitudinal {
+        /// Computes maximum available drive force (N)
+        double max_drive_force(
+            const VehicleParams& vehicle,
+            const CarState& car_state
+        );
+
+        /// Computes maximum available braking force (N)
+        double max_brake_force(
+            const VehicleParams& vehicle,
+            const CarState& car_state
+        );
+
+        /// Computes net longitudinal force applied to the vehicle (N)
+        double net_force(
+            const VehicleParams& vehicle,
+            const CarState& car_state,
+            const ControlInput& control,
+            double drag_force
+        );
+
+    } // namespace longitudinal
+} // namespace physics

@@ -37,3 +37,7 @@ add_executable(Lap_Time_Sim_Engine
         tests/sim/test_determinism.cpp
         tools/benchmark.cpp
 )
+
+target_include_directories(Lap_Time_Sim_Engine
+        PUBLIC ${CMAKE_SOURCE_DIR}/include
+)
