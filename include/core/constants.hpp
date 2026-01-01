@@ -1,8 +1,6 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_CONSTANTS_HPP
-#define LAP_TIME_SIM_ENGINE_CONSTANTS_HPP
-
-#endif //LAP_TIME_SIM_ENGINE_CONSTANTS_HPP
+namespace constants {
+    constexpr double g = 9.81;
+    constexpr double air_density = 1.225;
+} // namespace constants

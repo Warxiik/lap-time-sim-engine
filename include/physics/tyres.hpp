@@ -1,8 +1,16 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_TYRES_HPP
-#define LAP_TIME_SIM_ENGINE_TYRES_HPP
+#include "models/vehicle.hpp"
+#include "models/car_state.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_TYRES_HPP
+namespace physics {
+    namespace tyres {
+        /// Returns effective grip coefficient μ
+        double grip_coefficient (
+            const VehicleParams& vehicle,
+            const CarState& state,
+            double normal_load
+            );
+
+    } // namespace tyres
+} // namespace physics

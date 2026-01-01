@@ -1,8 +1,22 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_LATERAL_HPP
-#define LAP_TIME_SIM_ENGINE_LATERAL_HPP
+#include "models/track.hpp"
+#include "models/vehicle.hpp"
+#include "models/car_state.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_LATERAL_HPP
+namespace physics {
+    namespace lateral {
+        /// Computes maximum allowable speed for a given track segment
+        /// based on lateral acceleration limits.
+        ///
+        /// v_max = sqrt(mu * g / curvature)
+        ///
+        /// curvature == 0 implies straight (no lateral limit)
+
+        double max_speed(
+            const TrackSegment& segment,
+            const VehicleParam& vehicle,
+            const CarState& state
+            );
+    } // namespace physics
+} // namespace lateral
