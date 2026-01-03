@@ -1,8 +1,0 @@
-//
-// Created by nikol on 12/28/2025.
-//
-
-#ifndef LAP_TIME_SIM_ENGINE_STEP_HPP
-#define LAP_TIME_SIM_ENGINE_STEP_HPP
-
-#endif //LAP_TIME_SIM_ENGINE_STEP_HPP
