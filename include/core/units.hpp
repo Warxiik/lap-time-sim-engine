@@ -1,8 +1,11 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_UNITS_HPP
-#define LAP_TIME_SIM_ENGINE_UNITS_HPP
+using seconds = double;
+using meters = double;
 
-#endif //LAP_TIME_SIM_ENGINE_UNITS_HPP
+using meters_ps = double; // meters per second
+using meters_ps2 = double; // meters per second squared
+
+using radians = double;
+using newtons = double;
+using kilograms = double;
