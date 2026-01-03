@@ -1,8 +1,16 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_VEHICLE_HPP
-#define LAP_TIME_SIM_ENGINE_VEHICLE_HPP
+#include "models/aero.hpp"
+#include "models/drivetrain.hpp"
+#include "core/units.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_VEHICLE_HPP
+struct VehicleParams {
+    kilograms mass;
+    meters wheel_radius;
+
+    newtons max_brake_force;
+    newtons max_drive_force;
+
+    Aero aero;
+    Drivetrain drivetrain;
+};
