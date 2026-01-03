@@ -1,8 +1,19 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_DRIVETRAIN_HPP
-#define LAP_TIME_SIM_ENGINE_DRIVETRAIN_HPP
+#include <vector>
 
-#endif //LAP_TIME_SIM_ENGINE_DRIVETRAIN_HPP
+struct Engine {
+    std::vector<double> rpm;
+    std::vector<double> torque; // Nm
+};
+
+struct Gearbox {
+    std::vector<double> ratios;
+    double final_drive;
+};
+
+struct Drivetrain {
+    Engine engine;
+    Gearbox gearbox;
+    double efficiency; // 0 to 1
+};

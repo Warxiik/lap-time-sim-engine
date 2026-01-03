@@ -1,8 +1,7 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_AERO_HPP
-#define LAP_TIME_SIM_ENGINE_AERO_HPP
-
-#endif //LAP_TIME_SIM_ENGINE_AERO_HPP
+struct Aero {
+    double drag_coefficient; // Cd
+    double lift_coefficient; // Cl (negative for downforce)
+    double frontal_area;     // m^2
+};

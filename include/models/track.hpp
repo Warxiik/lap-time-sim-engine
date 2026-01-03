@@ -1,8 +1,16 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_TRACK_HPP
-#define LAP_TIME_SIM_ENGINE_TRACK_HPP
+#include <vector>
+#include "core/units.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_TRACK_HPP
+struct TrackSegment {
+    meters length;
+    double curvature;
+    double grip;
+    double camber;
+};
+
+struct Track {
+    std::vector<TrackSegment> segments;
+    meters total_length;
+};
