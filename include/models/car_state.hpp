@@ -1,8 +1,19 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_CAR_STATE_HPP
-#define LAP_TIME_SIM_ENGINE_CAR_STATE_HPP
+#include "core/units.hpp"
+#include "models/tyre.hpp"
 
-#endif //LAP_TIME_SIM_ENGINE_CAR_STATE_HPP
+struct CarState {
+    meters s; // Position along the track
+
+    // Kinematics
+    meters_ps v; // speed
+    meters_ps2 a; // acceleration
+
+    // Powertrain state
+    int gear;
+    double engine_rpm;
+
+    // Tire state
+    TyreState tyres;
+};
