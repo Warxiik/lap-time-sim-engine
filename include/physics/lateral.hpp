@@ -15,7 +15,7 @@ namespace physics {
 
         double max_speed(
             const TrackSegment& segment,
-            const VehicleParam& vehicle,
+            const VehicleParams& vehicle,
             const CarState& state
             );
     } // namespace physics

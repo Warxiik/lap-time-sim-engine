@@ -7,13 +7,13 @@ namespace physics {
     namespace aero {
         /// Computes aerodynamic drag force (N)
         double drag_force (
-            const VehicleParam& vehicle,
+            const VehicleParams& vehicle,
             const CarState& state
         );
 
         /// Computes aerodynamic downforce (N)
         double downforce (
-            const VehicleParam& vehicle,
+            const VehicleParams& vehicle,
             const CarState& state
         );
     } // namespace aero
