@@ -1,8 +1,10 @@
-//
-// Created by nikol on 12/28/2025.
-//
+#pragma once
 
-#ifndef LAP_TIME_SIM_ENGINE_TYRE_HPP
-#define LAP_TIME_SIM_ENGINE_TYRE_HPP
+struct TyreState {
+    double temperature; // normalized [0..1]
+    double wear;        // normalized [0..1]
+};
 
-#endif //LAP_TIME_SIM_ENGINE_TYRE_HPP
+struct TyreParams {
+    double base_grip;      // base grip coefficient μ at optimal conditions
+};
