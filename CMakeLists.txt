@@ -3,7 +3,7 @@ include(FetchContent)
 cmake_minimum_required(VERSION 3.14)
 project(Lap_Time_Sim_Engine)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 add_library(Lap_Time_Sim_Engine
         src/app/main.cpp
@@ -21,7 +21,7 @@ add_library(Lap_Time_Sim_Engine
         include/physics/longitudinal.hpp
         include/physics/lateral.hpp
         include/physics/aero.hpp
-        include/physics/tyres.hpp
+        include/physics/tyre_model.hpp
         include/sim/simulator.hpp
         include/sim/step.hpp
         include/sim/driver_model.hpp
@@ -33,10 +33,12 @@ add_library(Lap_Time_Sim_Engine
         src/physics/longitudinal.cpp
         src/physics/lateral.cpp
         src/physics/aero.cpp
-        src/physics/tyres.cpp
+        src/physics/tyre_model.cpp
         include/io/track_loader.hpp
         include/io/vehicle_loader.hpp
         include/sim/sim_config.hpp
+        include/physics/vehicle_dynamics.hpp
+        src/physics/vehicle_dynamics.cpp
 )
 
 target_include_directories(Lap_Time_Sim_Engine
