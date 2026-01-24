@@ -1,0 +1,26 @@
+{
+    "name": "F1 2024 Spec",
+    "mass": 798.0,
+    "wheel_radius": 0.33,
+
+    "aero": {
+        "drag_coefficient": 0.9,
+        "lift_coefficient": -3.5,
+        "frontal_area": 1.5
+    },
+
+    "drivetrain": {
+        "engine": {
+            "rpm":    [5000, 7000, 9000, 10500, 11500, 12500, 13500, 15000],
+            "torque": [450,  500,  530,  540,   535,   520,   490,   450]
+        },
+        "gearbox": {
+            "ratios": [3.25, 2.47, 1.95, 1.60, 1.35, 1.17, 1.03, 0.92],
+            "final_drive": 3.42
+        },
+        "efficiency": 0.95
+    },
+
+    "max_drive_force": 18000.0,
+    "max_brake_force": 32000.0
+}
