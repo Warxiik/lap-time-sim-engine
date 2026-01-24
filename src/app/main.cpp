@@ -76,8 +76,8 @@ int select_from_list(const std::string& title, const std::vector<fs::path>& item
  * @brief Formats a lap time as MM:SS.mmm
  */
 std::string format_lap_time(double seconds) {
-    int minutes = static_cast<int>(seconds) / 60;
-    double remaining = seconds - (minutes * 60);
+    const int minutes = static_cast<int>(seconds) / 60;
+    const double remaining = seconds - (minutes * 60);
 
     std::ostringstream oss;
     oss << minutes << ":"
@@ -95,15 +95,15 @@ void print_telemetry_stats(const Telemetry& telemetry) {
         return;
     }
 
-    double max_speed = *std::max_element(telemetry.velocity.begin(), telemetry.velocity.end());
-    double min_speed = *std::min_element(telemetry.velocity.begin(), telemetry.velocity.end());
-    double avg_speed = std::accumulate(telemetry.velocity.begin(), telemetry.velocity.end(), 0.0)
+    const double max_speed = *std::max_element(telemetry.velocity.begin(), telemetry.velocity.end());
+    const double min_speed = *std::min_element(telemetry.velocity.begin(), telemetry.velocity.end());
+    const double avg_speed = std::accumulate(telemetry.velocity.begin(), telemetry.velocity.end(), 0.0)
                        / static_cast<double>(telemetry.velocity.size());
 
-    double max_accel = *std::max_element(telemetry.acceleration.begin(), telemetry.acceleration.end());
-    double max_decel = *std::min_element(telemetry.acceleration.begin(), telemetry.acceleration.end());
+    const double max_accel = *std::max_element(telemetry.acceleration.begin(), telemetry.acceleration.end());
+    const double max_decel = *std::min_element(telemetry.acceleration.begin(), telemetry.acceleration.end());
 
-    int max_gear = *std::max_element(telemetry.gear.begin(), telemetry.gear.end());
+    const int max_gear = *std::max_element(telemetry.gear.begin(), telemetry.gear.end());
 
     std::cout << std::fixed << std::setprecision(1);
     std::cout << "\n=== Telemetry Summary ===\n";
@@ -130,7 +130,7 @@ void print_telemetry_stats(const Telemetry& telemetry) {
  * @return Path to data directory, or empty path if not found
  */
 fs::path find_data_directory() {
-    std::vector<fs::path> search_paths = {
+    const std::vector<fs::path> search_paths = {
         "data",
         "../data",
         "../../data",
@@ -163,8 +163,8 @@ int main() {
     const fs::path vehicles_dir = data_dir / "vehicles";
 
     // Scan for available tracks and vehicles
-    std::vector<fs::path> tracks = scan_directory(tracks_dir, ".csv");
-    std::vector<fs::path> vehicles = scan_directory(vehicles_dir, ".json");
+    const std::vector<fs::path> tracks = scan_directory(tracks_dir, ".csv");
+    const std::vector<fs::path> vehicles = scan_directory(vehicles_dir, ".json");
 
     if (tracks.empty()) {
         std::cerr << "Error: No track files found in " << tracks_dir << "\n";
@@ -179,14 +179,14 @@ int main() {
     }
 
     // Let user select track
-    int track_idx = select_from_list("Available Tracks", tracks);
+    const int track_idx = select_from_list("Available Tracks", tracks);
     if (track_idx < 0) {
         std::cerr << "Invalid track selection.\n";
         return 1;
     }
 
     // Let user select vehicle
-    int vehicle_idx = select_from_list("Available Vehicles", vehicles);
+    const int vehicle_idx = select_from_list("Available Vehicles", vehicles);
     if (vehicle_idx < 0) {
         std::cerr << "Invalid vehicle selection.\n";
         return 1;
@@ -224,7 +224,7 @@ int main() {
     std::cout << "Gears: " << vehicle.drivetrain.gearbox.ratios.size() << "\n\n";
 
     // Configure simulation
-    SimConfig config;
+    SimConfig config{};
     config.dt = 0.001;        // 1ms timestep (1000 Hz)
     config.max_time = 300.0;  // 5 minute safety timeout
 
@@ -236,7 +236,7 @@ int main() {
     sim.run();
 
     // Output results
-    double lap_time = sim.lap_time();
+    const double lap_time = sim.lap_time();
 
     std::cout << "\n========================================\n";
     std::cout << "            LAP COMPLETE\n";
