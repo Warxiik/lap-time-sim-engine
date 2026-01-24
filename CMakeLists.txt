@@ -1,9 +1,16 @@
-include(FetchContent)
-
 cmake_minimum_required(VERSION 3.14)
 project(Lap_Time_Sim_Engine)
 
 set(CMAKE_CXX_STANDARD 17)
+
+include(FetchContent)
+
+# JSON library for configuration files
+FetchContent_Declare(
+        json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
 
 add_library(Lap_Time_Sim_Engine
         src/app/main.cpp
@@ -26,6 +33,7 @@ add_library(Lap_Time_Sim_Engine
         include/sim/step.hpp
         include/sim/driver_model.hpp
         src/io/track_loader.cpp
+        src/io/vehicle_loader.cpp
         src/io/telemetry_writer.cpp
         src/sim/simulator.cpp
         src/sim/step.cpp
@@ -47,6 +55,10 @@ target_include_directories(Lap_Time_Sim_Engine
         PUBLIC ${CMAKE_SOURCE_DIR}/tests
         PUBLIC ${CMAKE_SOURCE_DIR}/tools
         PUBLIC ${CMAKE_SOURCE_DIR}/src/io
+)
+
+target_link_libraries(Lap_Time_Sim_Engine
+        PUBLIC nlohmann_json::nlohmann_json
 )
 
 add_executable(lap_time_sim_engine src/app/main.cpp)
