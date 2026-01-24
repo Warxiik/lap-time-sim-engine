@@ -29,7 +29,5 @@ private:
 
     CarState state_;
     Telemetry telemetry_;
-
-    DriverModel driver;
-
+    DriverModel driver_;
 };
