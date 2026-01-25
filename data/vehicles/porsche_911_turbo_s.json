@@ -1,0 +1,28 @@
+{
+    "name": "Porsche 911 Turbo S (992)",
+    "description": "Road-legal sports car, 3.8L twin-turbo flat-six, 650 HP",
+
+    "mass": 1640.0,
+    "wheel_radius": 0.35,
+
+    "aero": {
+        "drag_coefficient": 0.33,
+        "lift_coefficient": -0.4,
+        "frontal_area": 2.0
+    },
+
+    "drivetrain": {
+        "engine": {
+            "rpm":    [2000, 3000, 4000, 5000, 6000, 6500, 7000, 7200],
+            "torque": [550,  680,  750,  780,  760,  720,  650,  600]
+        },
+        "gearbox": {
+            "ratios": [3.91, 2.29, 1.58, 1.19, 0.97, 0.82, 0.68, 0.57],
+            "final_drive": 3.09
+        },
+        "efficiency": 0.90
+    },
+
+    "max_drive_force": 16000.0,
+    "max_brake_force": 20000.0
+}

@@ -1,0 +1,28 @@
+{
+    "name": "Dallara F2 2018",
+    "description": "FIA Formula 2 Championship car, 3.4L V6 turbo Mecachrome engine",
+
+    "mass": 755.0,
+    "wheel_radius": 0.33,
+
+    "aero": {
+        "drag_coefficient": 1.0,
+        "lift_coefficient": -2.8,
+        "frontal_area": 1.4
+    },
+
+    "drivetrain": {
+        "engine": {
+            "rpm":    [5000, 6000, 7000, 7500, 8000, 8500, 8750],
+            "torque": [350,  390,  420,  430,  420,  395,  370]
+        },
+        "gearbox": {
+            "ratios": [2.92, 2.21, 1.75, 1.44, 1.22, 1.05],
+            "final_drive": 3.73
+        },
+        "efficiency": 0.93
+    },
+
+    "max_drive_force": 14000.0,
+    "max_brake_force": 28000.0
+}

@@ -1,0 +1,28 @@
+{
+    "name": "Porsche 911 GT3 R (992)",
+    "description": "Customer GT3 racing car, 4.2L flat-six naturally aspirated",
+
+    "mass": 1300.0,
+    "wheel_radius": 0.34,
+
+    "aero": {
+        "drag_coefficient": 0.52,
+        "lift_coefficient": -1.8,
+        "frontal_area": 2.0
+    },
+
+    "drivetrain": {
+        "engine": {
+            "rpm":    [4000, 5000, 6000, 7000, 7500, 8000, 8500, 9000, 9250],
+            "torque": [420,  460,  495,  520,  525,  515,  490,  450,  420]
+        },
+        "gearbox": {
+            "ratios": [2.58, 1.89, 1.48, 1.21, 1.02, 0.87],
+            "final_drive": 4.18
+        },
+        "efficiency": 0.92
+    },
+
+    "max_drive_force": 12000.0,
+    "max_brake_force": 22000.0
+}
