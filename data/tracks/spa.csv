@@ -1,0 +1,45 @@
+length,curvature,grip,camber
+# Circuit de Spa-Francorchamps - 7.004 km
+# "The Ardennes Rollercoaster" - Belgium
+# Famous for Eau Rouge/Raidillon and long Kemmel straight
+# La Source hairpin
+80.0,0.05,1.0,0.0
+# Eau Rouge / Raidillon complex
+350.0,0.0,1.0,0.0
+120.0,-0.015,1.0,0.03
+80.0,0.02,1.0,0.02
+# Kemmel straight
+800.0,0.0,1.0,0.0
+# Les Combes
+100.0,0.025,1.0,0.0
+80.0,-0.03,1.0,0.0
+# Malmedy
+200.0,0.0,1.0,0.0
+150.0,0.015,1.0,0.0
+# Rivage
+120.0,0.0,1.0,0.0
+90.0,0.035,1.0,0.0
+# Down to Pouhon
+400.0,0.0,1.0,0.0
+# Pouhon (double apex)
+280.0,-0.008,1.0,0.0
+# Fagnes
+300.0,0.0,1.0,0.0
+120.0,0.02,1.0,0.0
+# Campus
+200.0,0.0,1.0,0.0
+100.0,-0.025,1.0,0.0
+# Stavelot
+250.0,0.0,1.0,0.0
+180.0,0.012,1.0,0.0
+# Paul Frere straight
+600.0,0.0,1.0,0.0
+# Blanchimont
+350.0,-0.006,1.0,0.0
+# Approach to bus stop
+400.0,0.0,1.0,0.0
+# Bus Stop chicane
+70.0,0.04,1.0,0.0
+50.0,-0.04,1.0,0.0
+# Pit straight
+550.0,0.0,1.0,0.0
