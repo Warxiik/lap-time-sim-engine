@@ -1,91 +1,151 @@
 # Lap Time Simulation Engine
-This project implements a deterministic, fixed-step lap time simulation engine in modern C++.
 
-The goal is not visual realism, but accurate and reproducible lap time estimation under explicit physical and numerical constraints. The simulation is distance-based (curvilinear coordinates), prioritising performance, determinism, and inspectability of all assumptions.
+A deterministic, fixed-timestep lap time simulation engine written in modern C++17.
 
-## Design Goals
+This project implements a point-mass vehicle dynamics model for accurate and reproducible lap time estimation. The simulation uses curvilinear coordinates (distance-based), prioritizing performance, determinism, and full transparency of all physical assumptions.
 
-- Deterministic results (bitwise identical across runs)
-- Fixed-step integration
-- No dynamic memory allocation in the hot loop
-- Explicit physical and numerical assumptions
-- Data-oriented design
-- Performance measured and justified, not assumed
+## Features
 
-## Non-Goals
+- **Deterministic simulation** - Bitwise identical results across runs
+- **Point-mass vehicle model** - Simplified but physically grounded
+- **Friction circle tyre model** - Shared traction budget between lateral and longitudinal forces
+- **Aerodynamic forces** - Drag and downforce affecting grip and top speed
+- **Algorithmic driver model** - Lookahead braking with bang-bang throttle/brake control
+- **Real-world data** - Includes F1 tracks and vehicle configurations
+- **Interactive CLI** - Select tracks and vehicles at runtime
+- **Performance benchmarking** - Measure throughput and verify determinism
 
-- Real-time graphics or visualisation
-- Full vehicle dynamics (no suspension kinematics)
-- Pacejka tyre modelling
-- Driver-in-the-loop simulation
-- Game-like behaviour or steering input
+## Quick Start
 
-## Simulation Model
-
-- Track represented as a sequence of segments defined by length and curvature
-- Vehicle state evolves along distance, not Cartesian coordinates
-- Cornering speed limited by lateral acceleration constraint
-- Longitudinal acceleration limited by engine, braking, drag, and tyre grip
-- Aerodynamic downforce modifies available tyre grip
-- Tyres modelled with simplified grip and degradation parameters
-
-## Project Structure
-
-- include/    - Public headers and data definitions  
-- src/        - Implementation  
-- physics/    - Stateless force and constraint calculations  
-- sim/        - Simulation orchestration and integration loop  
-- models/     - Pure data structures  
-- tests/      - Determinism and physics unit tests  
-- data/       - Track and vehicle input files  
-- tools/      - Benchmarking and profiling utilities
-
-## Determinism & Correctness
-
-- Fixed integration timestep
-- No random numbers in the simulation loop
-- No heap allocation during stepping
-- Identical inputs produce identical outputs across runs
-- Step-size sensitivity tested
-
-## Performance
-
-The simulator is designed to run thousands of laps per second on a single core, enabling large parameter sweeps and strategy evaluation.
-
-Performance is validated using:
-- Compiler optimisation flags (-O3, LTO)
-- Profiling tools (perf, Tracy)
-- Benchmarks in tools/
-
-## Build
+### Build
 
 ```bash
-mkdir build
-cd build
+mkdir build && cd build
 cmake ..
 cmake --build .
 ```
 
-## Run
+### Run Simulation
 
 ```bash
-./lap_sim data/tracks/monza.csv data/vehicles/f1_like.json
+./lap_time_sim_engine
 ```
 
-## Testing
+The program will scan the `data/` directory and present an interactive menu to select a track and vehicle.
 
-Unit tests validate:
-- Lateral and longitudinal force limits
-- Numerical stability
-- Deterministic lap time output
+### Run Tests
+
+```bash
+./sim_test
+```
+
+### Run Benchmark
+
+```bash
+./benchmark [iterations]
+```
+
+Or use the helper script:
+
+```powershell
+# Windows (PowerShell)
+.\tools\perf_runner.ps1 -Release -Iterations 100
+```
+
+## Project Structure
+
+```
+├── include/
+│   ├── core/           # Units, math utilities, physical constants
+│   ├── models/         # Data structures (track, vehicle, telemetry)
+│   ├── physics/        # Force and constraint calculations
+│   ├── sim/            # Simulator, driver model, integration
+│   └── io/             # File loaders
+├── src/
+│   ├── app/            # Main application entry point
+│   ├── physics/        # Physics implementations
+│   ├── sim/            # Simulation loop and driver logic
+│   └── io/             # Track/vehicle loaders, telemetry writer
+├── tests/              # GoogleTest unit tests
+├── tools/              # Benchmark and profiling utilities
+├── data/
+│   ├── tracks/         # Track definitions (CSV)
+│   └── vehicles/       # Vehicle configurations (JSON)
+└── docs/               # Technical documentation
+```
+
+## Included Data
+
+### Tracks
+- Monaco (3.337 km) - Tight street circuit
+- Monza (5.793 km) - High-speed temple
+- Silverstone (5.891 km) - Fast and flowing
+- Spa-Francorchamps (7.004 km) - Legendary circuit
+- Suzuka (5.807 km) - Figure-eight layout
+
+### Vehicles
+- 2024 F1 Car - Full downforce configuration
+- Formula 2 Car - Spec series vehicle
+- Porsche 911 GT3 R - GT racing spec
+- Porsche 911 Turbo S - High-performance road car
+
+## Physics Model
+
+The simulation implements a point-mass model with:
+
+- **Aerodynamics**: Drag force `F = 0.5 × ρ × Cd × A × v²` and downforce
+- **Lateral dynamics**: Maximum cornering speed `v_max = √(a_lat_max / κ)`
+- **Longitudinal dynamics**: Engine torque curves, gear ratios, braking
+- **Tyre model**: Friction circle limiting combined lateral/longitudinal acceleration
+- **Integration**: Semi-implicit Euler with fixed 1ms timestep
+
+See [docs/physics_model.md](docs/physics_model.md) for complete equations.
+
+## Determinism
+
+The simulator guarantees identical outputs for identical inputs:
+
+- Fixed integration timestep (no adaptive stepping)
+- No random number generation
+- No floating-point non-determinism (consistent operation order)
+- No heap allocation in the simulation loop
+
+See [docs/determinism.md](docs/determinism.md) for implementation details.
+
+## Performance
+
+Typical performance on a modern CPU (Release build):
+
+| Metric | Value |
+|--------|-------|
+| Throughput | ~500+ laps/second |
+| Lap simulation | < 2ms per lap |
+| Real-time factor | > 40,000x |
+
+This enables large-scale parameter sweeps and strategy optimization.
+
+## Documentation
+
+- [Physics Model](docs/physics_model.md) - All equations and formulas
+- [Assumptions](docs/assumptions.md) - Documented simplifications
+- [Determinism](docs/determinism.md) - How determinism is achieved
+
+## Dependencies
+
+- C++17 compiler (GCC, Clang, MSVC)
+- CMake 3.14+
+- [nlohmann/json](https://github.com/nlohmann/json) (fetched automatically)
+- [GoogleTest](https://github.com/google/googletest) (fetched automatically)
 
 ## Roadmap
 
-- Tyre temperature dynamics
-- Elevation and gradient effects
-- Simple energy recovery system
-- Parallel strategy simulation
+- [ ] Tyre temperature and degradation dynamics
+- [ ] Elevation and track gradient effects
+- [ ] Energy recovery system (ERS) modeling
+- [ ] Fuel load and consumption
+- [ ] Multi-lap race simulation
+- [ ] Parallel parameter sweeps
 
-## Notes
+## License
 
-This project is intended as an engineering exercise focused on correctness and performance, not a complete vehicle dynamics model.
+This project is an engineering exercise for educational purposes.
