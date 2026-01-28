@@ -88,3 +88,7 @@ target_link_libraries(sim_test
 )
 
 add_test(NAME sim_tests COMMAND sim_tests)
+
+# Benchmark tool
+add_executable(benchmark tools/benchmark.cpp)
+target_link_libraries(benchmark PRIVATE Lap_Time_Sim_Engine)
