@@ -51,10 +51,8 @@ add_library(Lap_Time_Sim_Engine
 
 target_include_directories(Lap_Time_Sim_Engine
         PUBLIC ${CMAKE_SOURCE_DIR}/include
-        PUBLIC ${CMAKE_SOURCE_DIR}/src
-        PUBLIC ${CMAKE_SOURCE_DIR}/tests
-        PUBLIC ${CMAKE_SOURCE_DIR}/tools
-        PUBLIC ${CMAKE_SOURCE_DIR}/src/io
+        PRIVATE ${CMAKE_SOURCE_DIR}/src
+        PRIVATE ${CMAKE_SOURCE_DIR}/src/io
 )
 
 target_link_libraries(Lap_Time_Sim_Engine
@@ -79,6 +77,8 @@ add_executable(sim_test
         tests/physics/test_lateral.cpp
         tests/physics/test_longitudinal.cpp
         tests/sim/test_determinism.cpp
+        tests/io/test_track_loader.cpp
+        tests/io/test_vehicle_loader.cpp
 )
 
 target_link_libraries(sim_test
@@ -87,7 +87,7 @@ target_link_libraries(sim_test
         Lap_Time_Sim_Engine
 )
 
-add_test(NAME sim_tests COMMAND sim_tests)
+add_test(NAME sim_test COMMAND sim_test)
 
 # Benchmark tool
 add_executable(benchmark tools/benchmark.cpp)
