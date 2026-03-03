@@ -39,3 +39,15 @@
 
 # debug information files
 *.dwo
+
+# Build directories
+build/
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+.secrets
