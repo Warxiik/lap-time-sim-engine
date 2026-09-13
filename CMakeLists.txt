@@ -3,17 +3,31 @@ project(Lap_Time_Sim_Engine)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# When the engine is consumed via add_subdirectory() (e.g. as a git submodule),
+# only the library is built by default; apps, tests and the benchmark are for
+# standalone development.
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    set(LTS_IS_TOP_LEVEL ON)
+else()
+    set(LTS_IS_TOP_LEVEL OFF)
+endif()
+
+option(LTS_BUILD_APPS "Build the interactive application" ${LTS_IS_TOP_LEVEL})
+option(LTS_BUILD_TESTS "Build the unit tests" ${LTS_IS_TOP_LEVEL})
+option(LTS_BUILD_BENCHMARK "Build the benchmark tool" ${LTS_IS_TOP_LEVEL})
+
 include(FetchContent)
 
-# JSON library for configuration files
-FetchContent_Declare(
-        json
-        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-)
-FetchContent_MakeAvailable(json)
+# JSON library for configuration files (reuse the parent project's if present)
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    FetchContent_Declare(
+            json
+            URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    )
+    FetchContent_MakeAvailable(json)
+endif()
 
 add_library(Lap_Time_Sim_Engine
-        src/app/main.cpp
         include/core/units.hpp
         include/core/math.hpp
         include/core/constants.hpp
@@ -50,45 +64,57 @@ add_library(Lap_Time_Sim_Engine
 )
 
 target_include_directories(Lap_Time_Sim_Engine
-        PUBLIC ${CMAKE_SOURCE_DIR}/include
-        PRIVATE ${CMAKE_SOURCE_DIR}/src
-        PRIVATE ${CMAKE_SOURCE_DIR}/src/io
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/io
 )
 
 target_link_libraries(Lap_Time_Sim_Engine
         PUBLIC nlohmann_json::nlohmann_json
 )
 
-add_executable(lap_time_sim_engine src/app/main.cpp)
-target_link_libraries(lap_time_sim_engine PRIVATE Lap_Time_Sim_Engine)
+if(WIN32)
+    # M_PI is only defined by MSVC and MinGW headers with this macro.
+    target_compile_definitions(Lap_Time_Sim_Engine PRIVATE _USE_MATH_DEFINES)
+endif()
 
-FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-)
+add_library(lts::engine ALIAS Lap_Time_Sim_Engine)
 
-# Prevents GoogleTest from overriding our compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+if(LTS_BUILD_APPS)
+    add_executable(lap_time_sim_engine src/app/main.cpp)
+    target_link_libraries(lap_time_sim_engine PRIVATE Lap_Time_Sim_Engine)
+endif()
 
-FetchContent_MakeAvailable(googletest)
-enable_testing()
+if(LTS_BUILD_TESTS)
+    FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
 
-add_executable(sim_test
-        tests/physics/test_lateral.cpp
-        tests/physics/test_longitudinal.cpp
-        tests/sim/test_determinism.cpp
-        tests/io/test_track_loader.cpp
-        tests/io/test_vehicle_loader.cpp
-)
+    # Prevents GoogleTest from overriding our compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
-target_link_libraries(sim_test
-        PRIVATE
-        gtest_main
-        Lap_Time_Sim_Engine
-)
+    FetchContent_MakeAvailable(googletest)
+    enable_testing()
 
-add_test(NAME sim_test COMMAND sim_test)
+    add_executable(sim_test
+            tests/physics/test_lateral.cpp
+            tests/physics/test_longitudinal.cpp
+            tests/sim/test_determinism.cpp
+            tests/io/test_track_loader.cpp
+            tests/io/test_vehicle_loader.cpp
+    )
 
-# Benchmark tool
-add_executable(benchmark tools/benchmark.cpp)
-target_link_libraries(benchmark PRIVATE Lap_Time_Sim_Engine)
+    target_link_libraries(sim_test
+            PRIVATE
+            gtest_main
+            Lap_Time_Sim_Engine
+    )
+
+    add_test(NAME sim_test COMMAND sim_test)
+endif()
+
+if(LTS_BUILD_BENCHMARK)
+    add_executable(benchmark tools/benchmark.cpp)
+    target_link_libraries(benchmark PRIVATE Lap_Time_Sim_Engine)
+endif()
