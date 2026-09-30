@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Lap_Time_Sim_Engine)
+project(Lap_Time_Sim_Engine LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -98,6 +98,7 @@ if(LTS_BUILD_TESTS)
     enable_testing()
 
     add_executable(sim_test
+            tests/core/test_math.cpp
             tests/physics/test_lateral.cpp
             tests/physics/test_longitudinal.cpp
             tests/sim/test_determinism.cpp

@@ -11,32 +11,6 @@
 namespace physics {
 
 /**
- * @brief Linear interpolation for engine torque lookup.
- *
- * Given discrete data points (x, y), finds the y value at query point xq
- * using linear interpolation between the two nearest data points.
- *
- * @param x Sorted vector of x values (e.g., RPM)
- * @param y Corresponding y values (e.g., torque)
- * @param xq Query point
- * @return Interpolated y value
- */
-static double interpolate(const std::vector<double>& x,
-                          const std::vector<double>& y,
-                          double xq) {
-    if (xq <= x.front()) return y.front();
-    if (xq >= x.back())  return y.back();
-
-    for (size_t i = 1; i < x.size(); ++i) {
-        if (xq < x[i]) {
-            const double t = (xq - x[i - 1]) / (x[i] - x[i - 1]);
-            return y[i - 1] + t * (y[i] - y[i - 1]);
-        }
-    }
-    return y.back();
-}
-
-/**
  * @brief Computes engine RPM from wheel speed and current gear.
  *
  * The relationship between engine RPM and wheel speed is:
