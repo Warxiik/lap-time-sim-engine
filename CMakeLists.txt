@@ -98,6 +98,7 @@ if(LTS_BUILD_TESTS)
     enable_testing()
 
     add_executable(sim_test
+            tests/core/test_math.cpp
             tests/physics/test_lateral.cpp
             tests/physics/test_longitudinal.cpp
             tests/sim/test_determinism.cpp

@@ -2,41 +2,12 @@
 #include "physics/aero.hpp"
 #include "physics/tyre_model.hpp"
 #include "core/constants.hpp"
+#include "core/math.hpp"
 
 #include <algorithm>
 #include <cmath>
 
 namespace physics::longitudinal {
-
-/**
- * @brief Linear interpolation helper for engine torque curves.
- *
- * Engine torque maps are typically provided as discrete RPM-torque pairs.
- * This function interpolates to find torque at any RPM within the range.
- *
- * @param x Vector of independent variable values (e.g., RPM points)
- * @param y Vector of dependent variable values (e.g., torque values)
- * @param xq Query point to interpolate at
- * @return Interpolated value, clamped to range if xq is outside bounds
- */
-static double interpolate(const std::vector<double>& x,
-                          const std::vector<double>& y,
-                          double xq) {
-    // Handle edge cases: query outside the data range
-    if (xq <= x.front()) return y.front();
-    if (xq >= x.back())  return y.back();
-
-    // Find the interval containing xq and linearly interpolate
-    for (size_t i = 1; i < x.size(); ++i) {
-        if (xq < x[i]) {
-            // Linear interpolation: y = y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-            const double t = (xq - x[i - 1]) / (x[i] - x[i - 1]);
-            return y[i - 1] + t * (y[i] - y[i - 1]);
-        }
-    }
-
-    return y.back();
-}
 
 /**
  * @brief Computes the maximum drive force available at the wheels.
@@ -76,7 +47,7 @@ double max_drive_force(const VehicleParams& vehicle, const CarState& car_state) 
     }
 
     // Step 1: Get engine torque at current RPM from the torque curve
-    const double engine_torque = interpolate(engine.rpm, engine.torque, car_state.engine_rpm);
+    const double engine_torque = math::interpolate(engine.rpm, engine.torque, car_state.engine_rpm);
 
     // Step 2-4: Apply gear ratios and efficiency
     const double gear_ratio = gearbox.ratios[gear_index];
