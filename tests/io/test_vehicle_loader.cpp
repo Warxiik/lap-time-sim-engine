@@ -65,6 +65,42 @@ TEST(VehicleLoader, LoadsValidVehicle) {
     EXPECT_DOUBLE_EQ(v.drivetrain.efficiency, 0.9);
     EXPECT_DOUBLE_EQ(v.max_drive_force, 15000.0);
     EXPECT_DOUBLE_EQ(v.max_brake_force, 25000.0);
+    // No "tyre" block: the track's grip alone.
+    EXPECT_DOUBLE_EQ(v.tyre.base_grip, 1.0);
+    EXPECT_DOUBLE_EQ(v.tyre.longitudinal_grip, 1.0);
+}
+
+/**
+ * @brief The valid vehicle with a "tyre" block appended.
+ */
+static std::string vehicle_json_with_tyre(const std::string& tyre_block) {
+    std::string json = valid_vehicle_json();
+    const size_t end = json.rfind('}');
+    return json.substr(0, end) + ", \"tyre\": " + tyre_block + "}";
+}
+
+TEST(VehicleLoader, LoadsTyreGrip) {
+    auto path = write_temp_json(vehicle_json_with_tyre(R"({ "base_grip": 1.6, "longitudinal_grip": 1.7 })"));
+    VehicleParams v = load_vehicle(path);
+    remove_temp(path);
+
+    EXPECT_DOUBLE_EQ(v.tyre.base_grip, 1.6);
+    EXPECT_DOUBLE_EQ(v.tyre.longitudinal_grip, 1.7);
+}
+
+TEST(VehicleLoader, TyreFieldsDefaultToOne) {
+    auto path = write_temp_json(vehicle_json_with_tyre(R"({ "base_grip": 1.3 })"));
+    VehicleParams v = load_vehicle(path);
+    remove_temp(path);
+
+    EXPECT_DOUBLE_EQ(v.tyre.base_grip, 1.3);
+    EXPECT_DOUBLE_EQ(v.tyre.longitudinal_grip, 1.0);
+}
+
+TEST(VehicleLoader, ThrowsOnNonPositiveTyreGrip) {
+    auto path = write_temp_json(vehicle_json_with_tyre(R"({ "base_grip": 0.0 })"));
+    EXPECT_THROW(load_vehicle(path), std::runtime_error);
+    remove_temp(path);
 }
 
 TEST(VehicleLoader, ThrowsOnMissingFile) {

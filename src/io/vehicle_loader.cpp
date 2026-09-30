@@ -31,8 +31,15 @@ using json = nlohmann::json;
  *         "efficiency": 0.9
  *     },
  *     "max_drive_force": 15000.0,
- *     "max_brake_force": 25000.0
+ *     "max_brake_force": 25000.0,
+ *     "tyre": {
+ *         "base_grip": 1.6,
+ *         "longitudinal_grip": 1.7
+ *     }
  * }
+ *
+ * The "tyre" block is optional, and so is each of its fields: a missing one
+ * is 1.0, which leaves the friction to the track's grip alone.
  *
  * @param path Path to JSON file
  * @return VehicleParams structure with loaded data
@@ -96,6 +103,13 @@ VehicleParams load_vehicle(const std::string& path) {
         vehicle.max_drive_force = j.at("max_drive_force").get<double>();
         vehicle.max_brake_force = j.at("max_brake_force").get<double>();
 
+        // Tyres (optional)
+        if (j.contains("tyre")) {
+            const auto& tyre = j.at("tyre");
+            vehicle.tyre.base_grip = tyre.value("base_grip", 1.0);
+            vehicle.tyre.longitudinal_grip = tyre.value("longitudinal_grip", 1.0);
+        }
+
     } catch (const json::out_of_range& e) {
         throw std::runtime_error("Missing required field in vehicle file: " + std::string(e.what()));
     } catch (const json::type_error& e) {
@@ -111,6 +125,9 @@ VehicleParams load_vehicle(const std::string& path) {
     }
     if (vehicle.drivetrain.efficiency <= 0.0 || vehicle.drivetrain.efficiency > 1.0) {
         throw std::runtime_error("Drivetrain efficiency must be between 0 and 1");
+    }
+    if (vehicle.tyre.base_grip <= 0.0 || vehicle.tyre.longitudinal_grip <= 0.0) {
+        throw std::runtime_error("Tyre grip must be positive");
     }
 
     return vehicle;

@@ -1,6 +1,5 @@
 #include "sim/driver_model.hpp"
-#include "physics/lateral.hpp"
-#include "core/constants.hpp"
+#include "physics/vehicle_dynamics.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -30,44 +29,6 @@ size_t DriverModel::find_segment_index(const Track& track, double position) cons
 
     // Should not reach here if track is properly defined
     return track.segments.size() - 1;
-}
-
-/**
- * @brief Computes distance needed to brake from current speed to target.
- *
- * Derivation from kinematics:
- *   v² = v₀² + 2*a*d
- *   d = (v² - v₀²) / (2*a)
- *
- * Since we're decelerating, a is negative, but we pass deceleration as
- * a positive value, so:
- *   d = (v₀² - v²) / (2*decel)
- *
- * We add a safety margin (10%) to account for:
- *   - Discrete timestep effects
- *   - Grip variations
- *   - Conservative driving
- */
-double DriverModel::braking_distance(double current_speed,
-                                     double target_speed,
-                                     double deceleration) const {
-    if (current_speed <= target_speed) {
-        return 0.0;  // No braking needed
-    }
-
-    if (deceleration <= 0.0) {
-        return std::numeric_limits<double>::max();  // Can't brake
-    }
-
-    const double v0_sq = current_speed * current_speed;
-    const double v_sq = target_speed * target_speed;
-
-    // Base braking distance from kinematics
-    const double base_distance = (v0_sq - v_sq) / (2.0 * deceleration);
-
-    // Add 10% safety margin
-    constexpr double SAFETY_MARGIN = 1.1;
-    return base_distance * SAFETY_MARGIN;
 }
 
 /**
@@ -119,84 +80,41 @@ int DriverModel::select_gear(const CarState& state,
  * @brief Main driver logic: decide throttle and brake for current state.
  *
  * Algorithm overview:
- *   1. Find current segment and look ahead to upcoming segments
- *   2. Calculate maximum safe speed for each upcoming segment
- *   3. Determine if we need to brake to make the corner
- *   4. If braking not needed, apply full throttle
+ *   1. Find the speed the braking envelope allows where the car will be
+ *      after this step (at its current speed, v * dt further on)
+ *   2. If full throttle keeps the car under it: full throttle
+ *   3. Otherwise: the tyre force that lands the car exactly on it, as a
+ *      fraction of the engine's force (throttle) or the brakes' (brake)
  *
- * This is a simplified "bang-bang" controller (full throttle or full brake).
- * More sophisticated models would use:
- *   - Proportional control for smoother inputs
- *   - Trail braking (partial brake while turning)
- *   - Throttle modulation for traction control
+ * The envelope already holds every corner's limit and the braking distance
+ * to it, computed with the same forces the physics step applies, so the
+ * inputs never need to be more than full brake. Braking eases off as the
+ * corner's limit comes up, and in a corner at its limit the throttle is
+ * open but the tyres have no grip left to transmit it.
  */
 ControlInput DriverModel::compute_control(const CarState& state,
                                           const VehicleParams& vehicle,
-                                          const Track& track) const {
-    ControlInput control{0.0, 0.0};
+                                          const Track& track,
+                                          const BrakingEnvelope& envelope,
+                                          double dt) const {
+    const TrackSegment& segment = track.segments[find_segment_index(track, state.s)];
+    const physics::LongitudinalForces forces = physics::longitudinal_forces(state, vehicle, segment);
 
-    // Find current position on track
-    const size_t current_idx = find_segment_index(track, state.s);
-    const TrackSegment& current_seg = track.segments[current_idx];
+    // Where the envelope stands after this step
+    const double allowed = envelope.speed_at(state.s + state.v * dt);
 
-    // Maximum speed for current segment (lateral grip limit)
-    const double v_max_current = physics::lateral::max_speed(current_seg, vehicle, state);
-
-    // Estimate braking deceleration (assume ~1.5g for F1-like car)
-    // In a more complete model, this would come from tire/aero calculations
-    constexpr double ASSUMED_DECEL = 1.5 * constants::g;  // ~14.7 m/s²
-
-    // Look ahead: find minimum speed in upcoming segments
-    // and check if we need to start braking
-    double distance_to_brake_point = 0.0;
-    double min_upcoming_speed = v_max_current;
-
-    // Accumulate distance through current segment
-    double pos_in_segment = state.s;
-    for (size_t i = 0; i < current_idx; ++i) {
-        pos_in_segment -= track.segments[i].length;
-    }
-    distance_to_brake_point = current_seg.length - pos_in_segment;
-
-    // Look ahead through upcoming segments (limit lookahead to avoid excessive computation)
-    constexpr size_t MAX_LOOKAHEAD = 10;
-    const size_t num_segments = track.segments.size();
-
-    for (size_t i = 1; i <= MAX_LOOKAHEAD; ++i) {
-        const size_t seg_idx = (current_idx + i) % num_segments;
-        const TrackSegment& seg = track.segments[seg_idx];
-
-        // Calculate max speed for this segment
-        // Note: Using current state for downforce, which is approximate
-        // A more accurate model would iterate to find consistent speed
-        const double v_max_seg = physics::lateral::max_speed(seg, vehicle, state);
-
-        // Check if we need to brake for this corner
-        const double brake_dist = braking_distance(state.v, v_max_seg, ASSUMED_DECEL);
-
-        if (brake_dist > distance_to_brake_point) {
-            // Need to start braking now!
-            control.throttle = 0.0;
-            control.brake = 1.0;
-            return control;
-        }
-
-        // Track minimum speed and accumulate distance
-        min_upcoming_speed = std::min(min_upcoming_speed, v_max_seg);
-        distance_to_brake_point += seg.length;
+    // Full throttle, if that stays under it
+    const double full_throttle_accel = (physics::tyre_force(forces, 1.0, 0.0) - forces.drag) / vehicle.mass;
+    if (state.v + full_throttle_accel * dt <= allowed) {
+        return ControlInput{1.0, 0.0};
     }
 
-    // No braking needed - check if we're below corner speed limit
-    if (state.v < v_max_current * 0.99) {
-        // Below limit: accelerate
-        control.throttle = 1.0;
-        control.brake = 0.0;
-    } else {
-        // At limit: maintain speed (coast)
-        // In reality you'd use partial throttle to maintain exact speed
-        control.throttle = 0.3;  // Light throttle to maintain
-        control.brake = 0.0;
+    // Otherwise the tyre force that meets it: F = m (v_allowed - v) / dt + drag
+    const double needed = vehicle.mass * (allowed - state.v) / dt + forces.drag;
+    if (needed >= 0.0) {
+        const double throttle = forces.engine > 0.0 ? std::min(1.0, needed / forces.engine) : 0.0;
+        return ControlInput{throttle, 0.0};
     }
-
-    return control;
+    const double brake = forces.brakes > 0.0 ? std::min(1.0, -needed / forces.brakes) : 1.0;
+    return ControlInput{0.0, brake};
 }

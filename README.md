@@ -8,9 +8,10 @@ This project implements a point-mass vehicle dynamics model for accurate and rep
 
 - **Deterministic simulation** - Bitwise identical results across runs
 - **Point-mass vehicle model** - Simplified but physically grounded
-- **Friction circle tyre model** - Shared traction budget between lateral and longitudinal forces
-- **Aerodynamic forces** - Drag and downforce affecting grip and top speed
-- **Algorithmic driver model** - Lookahead braking with bang-bang throttle/brake control
+- **Friction ellipse tyre model** - Lateral and longitudinal grip from the tyres and the surface, shared in an ellipse; the engine and the brakes are limited by it
+- **Aerodynamic forces** - Drag and downforce affecting grip and top speed; corner speeds are aero-consistent (downforce at the corner's own speed), with banking
+- **Quasi-steady-state driver** - Follows a backward braking envelope with graded throttle and brake; nothing clamps the speed
+- **Standing and flying laps** - From rest, or timed from the line after an out lap
 - **Real-world data** - Includes F1 tracks and vehicle configurations
 - **Interactive CLI** - Select tracks and vehicles at runtime
 - **Performance benchmarking** - Measure throughput and verify determinism
@@ -94,9 +95,10 @@ Or use the helper script:
 The simulation implements a point-mass model with:
 
 - **Aerodynamics**: Drag force `F = 0.5 × ρ × Cd × A × v²` and downforce
-- **Lateral dynamics**: Maximum cornering speed `v_max = √(a_lat_max / κ)`
-- **Longitudinal dynamics**: Engine torque curves, gear ratios, braking
-- **Tyre model**: Friction circle limiting combined lateral/longitudinal acceleration
+- **Lateral dynamics**: Steady corner speed with downforce and banking, `v² = g(μ cos θ + sin θ) / (κ(cos θ − μ sin θ) − μ ρ|Cl|A/2m)`
+- **Longitudinal dynamics**: Engine torque curves, gear ratios, braking, all within the tyres' grip
+- **Tyre model**: Friction ellipse, with the tyres' lateral and longitudinal friction (`tyre` in the vehicle JSON) times the surface's grip
+- **Driver**: A backward braking envelope computed once per lap; the time integration is the forward pass
 - **Integration**: Semi-implicit Euler with fixed 1ms timestep
 
 See [docs/physics_model.md](docs/physics_model.md) for complete equations.

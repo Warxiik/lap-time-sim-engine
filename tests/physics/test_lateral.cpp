@@ -177,3 +177,106 @@ TEST(LateralPhysics, LateralAccelerationInReasonableRange) {
     EXPECT_GT(a_lat_max, 1.5 * constants::g);
     EXPECT_LT(a_lat_max, 4.0 * constants::g);
 }
+
+// =============================================================================
+// Corner speed: aero-consistent, banking, tyre grip
+// =============================================================================
+
+/**
+ * @test At the corner speed, the grip (with the downforce at that speed) just holds the corner.
+ */
+TEST(LateralPhysics, CornerSpeedIsAeroConsistent) {
+    VehicleParams vehicle = create_test_vehicle();
+
+    TrackSegment segment{};
+    segment.length = 100.0;
+    segment.curvature = 0.01;
+    segment.grip = 1.0;
+    segment.camber = 0.0;
+
+    const double v = physics::lateral::max_speed(segment, vehicle);
+    const double demand = physics::lateral_demand(v, segment);
+    const double limit = physics::compute_lateral_acc_limit(create_test_state(v), vehicle, segment);
+    EXPECT_NEAR(demand, limit, 1e-9 * limit);
+
+    // Faster than a car without downforce could take it.
+    VehicleParams no_aero = vehicle;
+    no_aero.aero.lift_coefficient = 0.0;
+    EXPECT_GT(v, physics::lateral::max_speed(segment, no_aero));
+}
+
+/**
+ * @test The corner speed is the corner's, not the speed the car arrives with.
+ */
+TEST(LateralPhysics, CornerSpeedDoesNotDependOnArrivalSpeed) {
+    VehicleParams vehicle = create_test_vehicle();
+
+    TrackSegment segment{};
+    segment.length = 100.0;
+    segment.curvature = 0.02;
+    segment.grip = 1.0;
+    segment.camber = 0.0;
+
+    EXPECT_EQ(physics::lateral::max_speed(segment, vehicle, create_test_state(20.0)),
+              physics::lateral::max_speed(segment, vehicle, create_test_state(80.0)));
+}
+
+/**
+ * @test Without downforce: v = sqrt(mu g / kappa), with mu the tyre's base grip times the track's.
+ */
+TEST(LateralPhysics, WithoutDownforceMatchesThePointMassFormula) {
+    VehicleParams vehicle = create_test_vehicle();
+    vehicle.aero.lift_coefficient = 0.0;
+    vehicle.tyre.base_grip = 1.5;
+
+    TrackSegment segment{};
+    segment.length = 100.0;
+    segment.curvature = 0.02;
+    segment.grip = 0.8;
+    segment.camber = 0.0;
+
+    EXPECT_NEAR(physics::lateral::max_speed(segment, vehicle), std::sqrt(1.5 * 0.8 * constants::g / 0.02), 1e-9);
+}
+
+/**
+ * @test Banking into the turn raises the corner speed; banking away lowers it.
+ */
+TEST(LateralPhysics, BankingIntoTheTurnRaisesCornerSpeed) {
+    VehicleParams vehicle = create_test_vehicle();
+
+    TrackSegment flat{};
+    flat.length = 100.0;
+    flat.curvature = 0.02;
+    flat.grip = 1.0;
+    flat.camber = 0.0;
+    TrackSegment banked = flat;
+    banked.camber = 0.1;
+    TrackSegment adverse = flat;
+    adverse.camber = -0.1;
+
+    const double v_flat = physics::lateral::max_speed(flat, vehicle);
+    const double v_banked = physics::lateral::max_speed(banked, vehicle);
+    EXPECT_GT(v_banked, v_flat);
+    EXPECT_LT(physics::lateral::max_speed(adverse, vehicle), v_flat);
+
+    // The banked speed balances demand and grip along the surface too.
+    const double demand = physics::lateral_demand(v_banked, banked);
+    const double limit = physics::compute_lateral_acc_limit(create_test_state(v_banked), vehicle, banked);
+    EXPECT_NEAR(demand, limit, 1e-9 * limit);
+}
+
+/**
+ * @test A fast corner a high-downforce car grips faster than it demands has no speed limit.
+ */
+TEST(LateralPhysics, DownforceCanLiftTheLimitEntirely) {
+    VehicleParams vehicle = create_test_vehicle();
+
+    TrackSegment sweep{};
+    sweep.length = 300.0;
+    sweep.curvature = 0.001;  // 1 km radius
+    sweep.grip = 1.0;
+    sweep.camber = 0.0;
+
+    // mu q = 1.225 * 3 * 1.5 / (2 * 800) = 0.0034 per metre > kappa
+    EXPECT_GT(physics::lateral::max_speed(sweep, vehicle), 1000.0);
+}

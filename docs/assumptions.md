@@ -70,7 +70,7 @@ delta_Fz = m * a * h_cg / wheelbase
 
 ### 4. Linear Friction Coefficient
 
-**Assumption:** Tire grip is constant regardless of slip angle or load.
+**Assumption:** Tire grip is constant regardless of slip angle or load: the tyres' friction (`tyre.base_grip` across, `tyre.longitudinal_grip` along) times the surface's grip.
 
 **Justification:**
 - Simplifies grip calculations significantly
@@ -94,24 +94,18 @@ mu_effective = mu_base * (F_z_ref / F_z)^n
 
 ---
 
-### 5. Linear Friction Circle
+### 5. Friction Ellipse
 
-**Assumption:** Combined grip follows a linear relationship rather than circular.
+**Assumption:** Combined grip fills an ellipse whose axes are the lateral and longitudinal friction on the same load.
 
 **Formula used:**
 ```
-traction_available = 1 - (a_lat / a_lat_max)
-```
-
-**True circular model:**
-```
-a_long^2 + a_lat^2 <= a_max^2
+(a_long / a_long_max)^2 + (a_lat / a_lat_max)^2 <= 1
 ```
 
 **Impact:**
-- Slightly pessimistic combined grip prediction
-- Approximately 10-15% error at high combined loads
-- Simpler to compute
+- Real tyres' combined envelopes are close to elliptical but not exactly (they depend on slip, load and camber)
+- The same envelope limits drive, braking and cornering
 
 ---
 
@@ -217,21 +211,18 @@ a_long^2 + a_lat^2 <= a_max^2
 
 ---
 
-### 13. Bang-Bang Control
+### 13. Braking Envelope Driver
 
-**Assumption:** Driver uses full throttle or full brake, no partial inputs.
+**Assumption:** The driver follows the car's quasi-steady-state limit: full throttle until the backward braking envelope, then exactly the brake that stays on it.
 
 **Justification:**
-- Simplifies control logic
-- Near-optimal for many situations
-- Easy to implement and debug
+- The standard quasi-steady-state lap
+- The car's potential, not a driver's
+- Inputs are graded, so braking eases into each corner as the ellipse allows (trail braking)
 
 **Impact:**
-- No trail braking (partial brake while turning)
-- No throttle modulation for traction control
-- Typically 1-3% slower than optimal
-
-**Future enhancement:** Implement quasi-static optimal control.
+- No driver margin: real drivers, and a full vehicle model, are slower
+- No transient effects (weight transfer, yaw) at corner entry and exit
 
 ---
 
@@ -270,7 +261,7 @@ a_long^2 + a_lat^2 <= a_max^2
 
 ### 16. Flat Track (No Elevation)
 
-**Assumption:** Track is flat with no elevation changes.
+**Assumption:** Track is flat with no elevation changes. Banking (a segment's `camber`) is modelled: it raises the corner speed and the tyres' load.
 
 **Justification:**
 - Elevation requires 3D track model
@@ -310,7 +301,7 @@ a_long^2 + a_lat^2 <= a_max^2
 | Linear friction | Low | Low |
 | No thermal model | Medium (for stints) | High |
 | Constant aero | Low | Medium |
-| Bang-bang control | Low-Medium | Medium |
+| Envelope driver (no margin) | Low-Medium | Low |
 | Centerline racing | Medium | High |
 | No elevation | Low-High (track dependent) | Medium |
 
