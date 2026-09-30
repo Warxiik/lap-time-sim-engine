@@ -4,7 +4,7 @@
 #include "models/control.hpp"
 #include "models/track.hpp"
 #include "models/vehicle.hpp"
-#include "physics/lateral.hpp"
+#include "sim/braking_envelope.hpp"
 
 /**
  * @file driver_model.hpp
@@ -14,14 +14,16 @@
  * throttle and brake inputs to minimize lap time while respecting
  * physical limits (grip, engine power, etc.).
  *
- * This simplified driver model uses a basic strategy:
- *   1. Look ahead to find the maximum safe speed for upcoming corners
- *   2. If current speed > safe speed: brake
- *   3. If current speed < safe speed: accelerate
- *   4. Select appropriate gear based on engine RPM
+ * This driver follows the car's braking envelope (BrakingEnvelope): the fastest
+ * speed anywhere on the lap from which every corner ahead can still be made.
+ *   1. Full throttle while that keeps the car under the envelope
+ *   2. Otherwise exactly the throttle or brake that lands the car on it
+ *   3. Select appropriate gear based on engine RPM
+ *
+ * Braking starts as late as the car's own brakes and tyres allow, and the
+ * car reaches each corner at the corner's speed limit.
  *
  * More sophisticated models would include:
- *   - Trail braking (brake while turning)
  *   - Optimal racing line selection
  *   - Tire management (adjusting pace to preserve tires)
  *   - Energy deployment strategy (for hybrid systems)
@@ -42,19 +44,23 @@ public:
      *
      * The algorithm:
      *   1. Find current track segment based on position
-     *   2. Compute maximum speed for current and upcoming segments
-     *   3. Determine if we need to brake or can accelerate
-     *   4. Return appropriate control inputs
+     *   2. Look up the braking envelope where the car will be after this step
+     *   3. Full throttle if that stays under it; otherwise the throttle or
+     *      brake that meets it
      *
      * @param state Current car state (position, velocity)
-     * @param vehicle Vehicle parameters (for speed calculations)
+     * @param vehicle Vehicle parameters (for the available forces)
      * @param track Track definition (segments with curvature)
+     * @param envelope The car's braking envelope on this track
+     * @param dt Time step the inputs will be held for (s)
      * @return Control inputs (throttle, brake normalized to [0,1])
      */
     [[nodiscard]] ControlInput compute_control(
         const CarState& state,
         const VehicleParams& vehicle,
-        const Track& track) const;
+        const Track& track,
+        const BrakingEnvelope& envelope,
+        double dt) const;
 
     /**
      * @brief Determines optimal gear for current speed and RPM.
@@ -81,19 +87,4 @@ private:
     [[nodiscard]] size_t find_segment_index(
         const Track& track,
         double position) const;
-
-    /**
-     * @brief Computes braking distance from current speed to target speed.
-     *
-     * Uses kinematic equation: d = (v² - v_target²) / (2 * a_brake)
-     *
-     * @param current_speed Current velocity (m/s)
-     * @param target_speed Target velocity (m/s)
-     * @param deceleration Braking deceleration (m/s², positive value)
-     * @return Distance required to slow down (m)
-     */
-    [[nodiscard]] double braking_distance(
-        double current_speed,
-        double target_speed,
-        double deceleration) const;
 };

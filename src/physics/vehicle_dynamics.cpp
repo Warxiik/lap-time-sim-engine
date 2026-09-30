@@ -50,6 +50,41 @@ static double compute_rpm(double velocity,
 }
 
 /**
+ * @brief The longitudinal forces available in the current state.
+ *
+ * The engine and the brakes say what they could deliver; the tyres say how
+ * much of it reaches the road. The tyres' share is the friction ellipse's
+ * (longitudinal_grip_force): all of the longitudinal grip on a straight,
+ * less in a corner, none at the cornering limit.
+ *
+ * @param state Current car state (speed, gear, RPM)
+ * @param vehicle Vehicle parameters
+ * @param trackSeg Current track segment (grip, curvature, camber)
+ * @return Forces in Newtons
+ */
+LongitudinalForces longitudinal_forces(const CarState& state,
+                                       const VehicleParams& vehicle,
+                                       const TrackSegment& trackSeg) {
+    LongitudinalForces forces{};
+    forces.engine = longitudinal::max_drive_force(vehicle, state);
+    forces.brakes = longitudinal::max_brake_force(vehicle, state);
+    forces.grip = longitudinal_grip_force(state, vehicle, trackSeg);
+    forces.drag = aero::drag_force(vehicle, state);
+    return forces;
+}
+
+/**
+ * @brief Force the tyres transmit for the driver's pedals.
+ *
+ * The engine pushes and the brakes hold back; whatever is asked beyond the
+ * grip is lost to wheelspin or lock-up, so the result is clamped to ±grip.
+ */
+double tyre_force(const LongitudinalForces& forces, double throttle, double brake) {
+    const double asked = throttle * forces.engine - brake * forces.brakes;
+    return std::clamp(asked, -forces.grip, forces.grip);
+}
+
+/**
  * @brief Advances the car state by one time step using longitudinal dynamics.
  *
  * This is the core simulation step function. It:
@@ -70,13 +105,12 @@ static double compute_rpm(double velocity,
  *
  * === Traction Limiting ===
  *
- * The available longitudinal force is reduced when cornering.
- * This is the friction circle concept: if you're using grip for
- * lateral acceleration, less is available for throttle/brake.
- *
- * traction_scale = 1 - (a_lat / a_lat_max)
- *
- * This ensures the car can't accelerate hard while cornering tight.
+ * Both the drive force and the brake force are limited by what the tyres
+ * can transmit along the road: μ_long times the normal load, times the
+ * share the friction ellipse leaves after cornering. Nothing clamps the
+ * speed: a car that arrives at a corner too fast has no grip left to brake
+ * with, and runs through it at the speed it has. The driver model brakes
+ * in time so that does not happen.
  *
  * === Assumptions ===
  *
@@ -100,31 +134,18 @@ void step_longitudinal(CarState& state,
                        double brake,
                        seconds dt) {
 
-    // === Step 1: Compute aerodynamic drag ===
-    // Downforce is computed inside traction_scale via compute_lateral_acc_limit
-    const double drag = aero::drag_force(vehicle, state);
+    // === Step 1: Forces available (engine, brakes, tyre grip, drag) ===
+    const LongitudinalForces forces = longitudinal_forces(state, vehicle, trackSeg);
 
-    // === Step 2: Compute traction limit from friction circle ===
-    // When cornering, less grip is available for acceleration/braking
-    const double traction_scale = compute_traction_scale(state, vehicle, trackSeg);
+    // === Step 2: What the tyres transmit, then drag ===
+    // Drag is an external force, not limited by tyre grip
+    const double net_force = tyre_force(forces, throttle, brake) - forces.drag;
 
-    // === Step 3: Compute longitudinal forces ===
-    // Apply traction limit to the tire forces (not drag)
-    // Drag is an external force, not limited by tire grip
-    // We need to separate: tire_force = drive_force - brake_force
-    const double drive_force = throttle * longitudinal::max_drive_force(vehicle, state);
-    const double brake_force = brake * longitudinal::max_brake_force(vehicle, state);
-    const double tire_force = drive_force - brake_force;
-
-    // Scale tire force by available traction, then subtract drag
-    const double tire_force_limited = tire_force * traction_scale;
-    const double net_force = tire_force_limited - drag;
-
-    // === Step 4: Apply Newton's second law ===
+    // === Step 3: Apply Newton's second law ===
     // F = ma → a = F/m
     const double acceleration = net_force / vehicle.mass;
 
-    // === Step 5: Semi-implicit Euler integration ===
+    // === Step 4: Semi-implicit Euler integration ===
     // Update velocity first, then use new velocity for position
     // This is more stable than explicit Euler
     const double new_velocity = state.v + acceleration * dt;
@@ -138,7 +159,7 @@ void step_longitudinal(CarState& state,
     // Store acceleration for telemetry/debugging
     state.a = acceleration;
 
-    // === Step 6: Update engine RPM ===
+    // === Step 5: Update engine RPM ===
     // RPM is determined by wheel speed and gear ratio
     state.engine_rpm = compute_rpm(state.v, state.gear, vehicle);
 }

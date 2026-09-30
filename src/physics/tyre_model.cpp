@@ -8,138 +8,139 @@
 namespace physics {
 
 /**
+ * @brief Acceleration pressing the car into the road surface.
+ *
+ * On a road banked by θ into the turn (the segment's camber), the car's
+ * weight and the centripetal acceleration it needs split between the
+ * direction across the surface and the direction into it:
+ *
+ *   a_normal = g·cos θ + v²·|κ|·sin θ + F_downforce / m
+ *
+ * On a flat road (θ = 0) this is g plus the downforce per unit mass, the
+ * load the friction coefficient acts on.
+ *
+ * @param velocity Speed (m/s)
+ * @param vehicle Vehicle parameters (mass, aero)
+ * @param trackSeg Track segment (curvature, camber)
+ * @return Normal acceleration in m/s²
+ */
+double normal_acceleration(double velocity, const VehicleParams& vehicle, const TrackSegment& trackSeg) {
+    CarState at_speed{};
+    at_speed.v = velocity;
+    const double downforce = aero::downforce(vehicle, at_speed);
+    const double k = std::abs(trackSeg.curvature);
+    return constants::g * std::cos(trackSeg.camber)
+         + velocity * velocity * k * std::sin(trackSeg.camber)
+         + downforce / vehicle.mass;
+}
+
+/**
+ * @brief Lateral acceleration the tyres must provide along the surface.
+ *
+ *   a_lateral = | v²·|κ|·cos θ − g·sin θ |
+ *
+ * Banking takes part of the cornering load off the tyres (the g·sin θ term):
+ * on a banked turn at low speed the tyres even hold the car from sliding
+ * down the slope. On a flat road it is the centripetal acceleration v²·|κ|.
+ *
+ * @param velocity Speed (m/s)
+ * @param trackSeg Track segment (curvature, camber)
+ * @return Lateral acceleration demand in m/s², never negative
+ */
+double lateral_demand(double velocity, const TrackSegment& trackSeg) {
+    const double k = std::abs(trackSeg.curvature);
+    return std::abs(velocity * velocity * k * std::cos(trackSeg.camber) - constants::g * std::sin(trackSeg.camber));
+}
+
+/**
  * @brief Computes the maximum lateral acceleration the car can sustain.
  *
- * This function answers: "How hard can the car corner without losing grip?"
+ * Friction force = μ · N, so the largest lateral acceleration is
  *
- * === Fundamental Physics ===
+ *   a_lat_max = μ_lat · a_normal
  *
- * Friction force = μ * N
- *   Where μ = friction coefficient (grip), N = normal force
+ * with μ_lat the tyres' lateral friction (TyreParams::base_grip) times the
+ * surface's grip, and a_normal from normal_acceleration(): weight, banking
+ * and downforce. Downforce adds grip without adding mass, which is why an
+ * F1 car corners at 5-6 g where a road car manages about 1 g.
  *
- * For a car cornering:
- *   - Normal force N = weight + downforce = m*g + F_downforce
- *   - Maximum friction F_max = μ * N
- *   - Maximum lateral acceleration a_lat_max = F_max / m = μ * N / m
- *
- * Substituting:
- *   a_lat_max = μ * (m*g + F_downforce) / m
- *             = μ * g + μ * F_downforce / m
- *
- * === The Downforce Advantage ===
- *
- * Notice that downforce adds grip without adding to the denominator (mass).
- * This is the key insight behind aerodynamic grip in racing:
- *
- *   - Road car: a_lat_max ≈ μ * g ≈ 1.0 * 9.81 ≈ 10 m/s² ≈ 1g
- *   - F1 car at 200 km/h: downforce ≈ 2 * weight
- *     a_lat_max ≈ μ * 3g ≈ 1.5 * 3 * 9.81 ≈ 44 m/s² ≈ 4.5g
- *
- * This is why F1 cars can take corners that would be impossible for road cars.
- *
- * === Track Grip Factor ===
- *
- * Different track surfaces and conditions affect grip:
+ * Different surfaces scale the friction through the segment's grip:
  *   - Dry asphalt: grip ≈ 1.0
- *   - Wet track: grip ≈ 0.7
- *   - Gravel: grip ≈ 0.4
- *
- * We multiply the base μ by the track's grip factor.
+ *   - Wet track:   grip ≈ 0.7
+ *   - Gravel:      grip ≈ 0.4
  *
  * @param state Current car state (velocity affects downforce)
- * @param vehicle Vehicle parameters (mass, aero configuration)
- * @param trackSeg Track segment (local grip coefficient)
+ * @param vehicle Vehicle parameters (mass, aero, tyres)
+ * @param trackSeg Track segment (grip, curvature, camber)
  * @return Maximum sustainable lateral acceleration in m/s²
  */
 double compute_lateral_acc_limit(const CarState& state,
                                  const VehicleParams& vehicle,
                                  const TrackSegment& trackSeg) {
-    // Calculate downforce at current speed using the aero module
-    // This properly handles the sign convention (returns positive downforce)
-    const double aero_downforce = aero::downforce(vehicle, state);
-
-    // Total normal force = gravitational weight + aerodynamic downforce
-    // Both are in Newtons, pushing the car into the track
-    const double normal_force = vehicle.mass * constants::g + aero_downforce;
-
-    // Effective grip coefficient = track surface grip
-    // In a more complex model, this would also include tire compound effects,
-    // temperature, wear, and camber angle effects
-    const double mu = trackSeg.grip;
-
-    // Maximum lateral acceleration = (μ * N) / m
-    // This comes from: F_friction = μ * N, and a = F / m
-    return mu * normal_force / vehicle.mass;
+    const double mu = vehicle.tyre.base_grip * trackSeg.grip;
+    return mu * normal_acceleration(state.v, vehicle, trackSeg);
 }
 
 /**
- * @brief Computes the fraction of longitudinal traction available after cornering.
+ * @brief Fraction of the longitudinal grip left after cornering.
  *
- * This implements the "friction circle" (or "traction circle") concept,
- * which is fundamental to vehicle dynamics and racing.
+ * === The Friction Ellipse ===
  *
- * === The Friction Circle ===
+ * A tyre has one grip budget for cornering and for driving or braking. The
+ * combinations it can hold fill an ellipse:
  *
- * Tires have a limited total grip budget. This budget is shared between:
- *   - Lateral force (cornering)
- *   - Longitudinal force (acceleration/braking)
+ *   (a_long / a_long_max)² + (a_lat / a_lat_max)² ≤ 1
  *
- * Imagine a circle where:
- *   - The radius represents maximum tire grip
- *   - Horizontal axis = longitudinal force
- *   - Vertical axis = lateral force
+ * so the share of the longitudinal grip left once the corner has taken its
+ * share is
  *
- * The tire can produce any combination of forces that stays INSIDE the circle.
- * If you're using 80% of grip for cornering, you only have ~60% left for braking.
+ *   scale = √(1 − (a_lat / a_lat_max)²)
  *
- * Mathematically (simplified linear model):
- *   traction_available = 1 - (a_lat_current / a_lat_max)
+ * On a straight all of it is left; at the cornering limit none is. The
+ * ellipse's axes are the lateral and longitudinal friction
+ * (TyreParams::base_grip and longitudinal_grip) on the same normal load.
  *
- * More accurate (circular):
- *   sqrt(a_lat² + a_long²) ≤ a_max
- *   a_long_available = sqrt(a_max² - a_lat²)
- *
- * We use the linear model for simplicity. It's slightly pessimistic but stable.
- *
- * === Racing Application ===
- *
- * - On a straight: a_lat = 0, so full traction available for acceleration/braking
- * - In a fast corner: a_lat is high, less traction for throttle/brake
- * - At corner apex: often at grip limit, no room for throttle
- * - Trail braking: gradually releasing brake as you add steering
- *
- * This is why "smooth" driving is fast—jerky inputs exceed the friction circle.
- *
- * @param state Current car state (velocity for downforce, position for segment)
+ * @param state Current car state (velocity for the demand and downforce)
  * @param vehicle Vehicle parameters
- * @param trackSeg Track segment (curvature determines required lateral acceleration)
- * @return Fraction of longitudinal traction available [0.0, 1.0]
+ * @param trackSeg Track segment (curvature determines the lateral demand)
+ * @return Fraction of longitudinal grip available [0.0, 1.0]
  */
 double compute_traction_scale(const CarState& state,
                               const VehicleParams& vehicle,
                               const TrackSegment& trackSeg) {
-    // Current lateral acceleration required for this corner at current speed
-    // a_lat = v² * curvature (centripetal acceleration formula)
-    const double a_lat_current = state.v * state.v * std::abs(trackSeg.curvature);
-
-    // Maximum lateral acceleration available from tires
     const double a_lat_max = compute_lateral_acc_limit(state, vehicle, trackSeg);
-
-    // Edge case: if no lateral grip (shouldn't happen), full traction available
-    // This prevents division by zero and handles pathological inputs
     if (a_lat_max <= 0.0) {
-        return 1.0;
+        return 0.0;
     }
 
-    // Calculate remaining traction budget
-    // Linear friction circle: traction = 1 - (used_grip / total_grip)
-    const double lateral_usage = a_lat_current / a_lat_max;
-    const double scale = 1.0 - lateral_usage;
+    const double usage = lateral_demand(state.v, trackSeg) / a_lat_max;
+    if (usage >= 1.0) {
+        return 0.0;  // at or past the cornering limit: nothing left
+    }
+    return std::sqrt(1.0 - usage * usage);
+}
 
-    // Clamp to valid range [0, 1]
-    // - scale < 0 means we're already exceeding grip (car is sliding)
-    // - scale > 1 shouldn't happen mathematically, but clamp for safety
-    return std::clamp(scale, 0.0, 1.0);
+/**
+ * @brief Largest force the tyres can transmit along the road now.
+ *
+ *   F_long_max = μ_long · m · a_normal · scale
+ *
+ * with μ_long the longitudinal friction (TyreParams::longitudinal_grip
+ * times the surface's grip) and scale from the friction ellipse. Both the
+ * drive force and the brake force are limited by it: the engine and the
+ * brakes can ask for more than the tyres transmit.
+ *
+ * @param state Current car state
+ * @param vehicle Vehicle parameters
+ * @param trackSeg Track segment
+ * @return Force in Newtons (>= 0)
+ */
+double longitudinal_grip_force(const CarState& state,
+                               const VehicleParams& vehicle,
+                               const TrackSegment& trackSeg) {
+    const double mu = vehicle.tyre.longitudinal_grip * trackSeg.grip;
+    const double normal = std::max(0.0, normal_acceleration(state.v, vehicle, trackSeg));
+    return mu * vehicle.mass * normal * compute_traction_scale(state, vehicle, trackSeg);
 }
 
 } // namespace physics

@@ -46,12 +46,14 @@ add_library(Lap_Time_Sim_Engine
         include/sim/simulator.hpp
         include/sim/step.hpp
         include/sim/driver_model.hpp
+        include/sim/braking_envelope.hpp
         src/io/track_loader.cpp
         src/io/vehicle_loader.cpp
         src/io/telemetry_writer.cpp
         src/sim/simulator.cpp
         src/sim/step.cpp
         src/sim/driver_model.cpp
+        src/sim/braking_envelope.cpp
         src/physics/longitudinal.cpp
         src/physics/lateral.cpp
         src/physics/aero.cpp
@@ -101,7 +103,10 @@ if(LTS_BUILD_TESTS)
             tests/core/test_math.cpp
             tests/physics/test_lateral.cpp
             tests/physics/test_longitudinal.cpp
+            tests/physics/test_tyre_model.cpp
             tests/sim/test_determinism.cpp
+            tests/sim/test_braking_envelope.cpp
+            tests/sim/test_lap.cpp
             tests/io/test_track_loader.cpp
             tests/io/test_vehicle_loader.cpp
     )

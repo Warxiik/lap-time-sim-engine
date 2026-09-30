@@ -89,7 +89,7 @@ Engine torque is interpolated from a torque curve (RPM vs torque table).
 
 ### Brake Force
 
-In the simplified model, maximum brake force is a constant parameter representing the combined limit of:
+The brakes' maximum force is a constant parameter representing the combined limit of:
 - Brake disc/caliper capacity
 - Brake-by-wire system limits
 
@@ -97,10 +97,21 @@ In the simplified model, maximum brake force is a constant parameter representin
 F_brake = brake_pedal × max_brake_force
 ```
 
+### Tyre Limit
+
+Neither the engine nor the brakes can put more through the tyres than they grip:
+
+```
+F_tyre = clamp(F_drive − F_brake, −F_long_max, +F_long_max)
+F_long_max = μ_long × m × a_normal × ellipse
+```
+
+with `μ_long` the tyres' longitudinal friction, `a_normal` the load per unit mass (see the tyre model) and `ellipse` the share of the longitudinal grip the corner leaves.
+
 ### Net Longitudinal Force
 
 ```
-F_net = F_drive - F_brake - F_drag
+F_net = F_tyre - F_drag
 ```
 
 The acceleration is then:
@@ -114,15 +125,30 @@ a = F_net / m
 
 ### Maximum Cornering Speed
 
-The maximum speed through a corner is limited by available lateral grip:
+The maximum speed through a corner is where the lateral grip, with the downforce at that same speed, just holds the corner. On a flat road:
 
 ```
-v_max = √(a_lat_max / κ)
+v² · κ = μ · (g + q · v²),    q = ρ · |Cl| · A / (2m)
+
+v_max = √(μ · g / (κ − μ · q))
+```
+
+On a road banked by θ into the turn (the segment's `camber`), part of the weight helps the car round and part of the cornering load presses it into the road:
+
+```
+v²·κ·cos θ − g·sin θ = μ · (g·cos θ + v²·κ·sin θ + q·v²)
+
+v_max = √(g · (μ·cos θ + sin θ) / (κ · (cos θ − μ·sin θ) − μ · q))
 ```
 
 Where:
-- `a_lat_max` = Maximum lateral acceleration (m/s²)
+- `μ` = the tyres' lateral friction (`tyre.base_grip`) times the segment's grip
 - `κ` = Track curvature (1/radius, in 1/m)
+- `θ` = Banking into the turn (rad)
+
+If the denominator is not positive, the downforce grips faster than the corner demands and the corner sets no limit: power and drag do.
+
+The corner speed is the corner's own. It does not depend on the speed the car arrives with.
 
 ### Lateral Acceleration Limit
 
@@ -144,31 +170,40 @@ Where:
 
 ---
 
-## Tire Model (Friction Circle)
+## Tyre Model (Friction Ellipse)
 
 ### Concept
 
-Tires have a limited total grip budget shared between:
+Tyres have a limited total grip budget shared between:
 - Lateral force (cornering)
 - Longitudinal force (acceleration/braking)
 
-This is visualized as a "friction circle" where the radius represents maximum grip.
+The combinations a tyre can hold fill an ellipse: its axes are the lateral and the longitudinal friction, which usually differ a little.
+
+### Friction
+
+```
+μ_lat  = tyre.base_grip         × segment.grip
+μ_long = tyre.longitudinal_grip × segment.grip
+```
+
+Both tyre values are optional in the vehicle JSON (`"tyre": { "base_grip": 1.6, "longitudinal_grip": 1.7 }`) and default to 1.0, which leaves the friction to the surface's grip alone.
+
+### Load and demand
+
+On a road banked by θ into the turn:
+
+```
+a_normal = g·cos θ + v²·κ·sin θ + F_downforce / m      (load per unit mass)
+a_lat    = | v²·κ·cos θ − g·sin θ |                     (lateral demand along the surface)
+a_lat_max = μ_lat × a_normal
+```
 
 ### Implementation
 
-We use a **linear friction circle** model:
-
 ```
-traction_available = 1 - (a_lat_current / a_lat_max)
-```
-
-Where:
-- `a_lat_current = v² × κ` (required centripetal acceleration)
-- `a_lat_max` = Maximum available lateral acceleration
-
-This scales the available longitudinal force:
-```
-F_tire_limited = F_tire × traction_available
+ellipse = √(1 − (a_lat / a_lat_max)²)        (0 at or past the cornering limit)
+F_long_max = μ_long × m × a_normal × ellipse
 ```
 
 **Physical interpretation:**
@@ -176,16 +211,50 @@ F_tire_limited = F_tire × traction_available
 - In a corner: Less traction available, must modulate throttle/brake
 - At grip limit: No traction available for throttle/brake
 
-### Limitations
+Half the lateral grip in use leaves √¾ ≈ 87 % of the longitudinal grip, where a linear model would leave 50 %.
 
-The linear model is slightly pessimistic compared to a true circular model:
-```
-# True circular model:
-F_long_available = √(F_max² - F_lat²)
+---
 
-# Our linear model:
-F_long_available = F_max × (1 - F_lat/F_max)
+## Driver: Braking Envelope
+
+### The quasi-steady-state lap
+
+A lap at the limit is the lower of two speed curves along the track:
+
+- **forward**: accelerating as hard as the engine and the tyres allow;
+- **backward**: the fastest speed from which the car can still brake down to every corner's limit ahead.
+
+The time integration is the forward curve, gear by gear. The backward curve (`BrakingEnvelope`) is computed once per track and car:
+
+1. Nodes every `SimConfig::envelope_spacing` metres (0.5 m by default). Each node's cap is the corner speed of its segment, and of any segment that starts before the next node.
+2. From the slowest cap of the lap, walk backwards once round the lap:
+
 ```
+v_i = min(cap_i, √(v_{i+1}² + 2 · a_brake · h))
+a_brake = (min(max_brake_force, F_long_max) + F_drag) / m
+```
+
+`a_brake` is taken at the lower of the two node speeds' estimates, so the envelope never asks for more than the car has.
+
+### Following it
+
+Each step the driver looks up the envelope where the car will be after the step. Full throttle if that stays under it; otherwise exactly the throttle or brake that lands the car on it:
+
+```
+F_needed = m · (v_allowed − v) / dt + F_drag
+throttle = F_needed / F_engine         (F_needed ≥ 0)
+brake    = −F_needed / max_brake_force (F_needed < 0)
+```
+
+Nothing clamps the speed. The car reaches each corner at its limit because it braked in time; a car forced in too fast would have no grip left to brake with and would carry its speed through.
+
+---
+
+## Laps and Timing
+
+- **Standing lap** (default): from 0.1 m/s at the line.
+- **Flying lap** (`SimConfig::flying_lap`): an untimed out lap from rest first; the clock starts as the car crosses the line at speed, as on a qualifying lap. On a closed circuit that is the speed of every lap after the first.
+- Each telemetry frame carries the time of the state it holds. The lap time is interpolated within the step that crosses the line (and, on a flying lap, the step that crossed it at the start), so it hardly depends on the step size.
 
 ---
 

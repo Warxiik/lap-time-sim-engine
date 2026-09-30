@@ -1,6 +1,4 @@
 #include "physics/lateral.hpp"
-#include "physics/aero.hpp"
-#include "physics/tyre_model.hpp"
 #include "core/constants.hpp"
 
 #include <cmath>
@@ -17,68 +15,82 @@ namespace physics::lateral {
  * === The Physics ===
  *
  * When a car corners, it needs centripetal force to change direction.
- * This force comes from tire friction. If you go too fast, the required
+ * This force comes from tyre friction. If you go too fast, the required
  * centripetal force exceeds available grip, and you slide off the track.
  *
- * Centripetal acceleration: a_lat = v² / r = v² * κ
- *   Where κ (kappa) is curvature = 1/radius
+ * Centripetal acceleration: a_lat = v² · κ   (κ = curvature = 1/radius)
  *
- * Maximum lateral acceleration from tires: a_lat_max = μ * g_effective
- *   Where g_effective includes downforce contribution
+ * The tyres can provide μ times the normal load, and the normal load grows
+ * with downforce, which grows with v². So the limit has to be found at the
+ * corner's own speed, not the speed the car happens to arrive with. On a
+ * flat road the balance is
  *
- * Setting a_lat = a_lat_max and solving for v:
- *   v_max = sqrt(a_lat_max / κ)
+ *   v² · κ = μ · (g + q · v²),      q = ρ · |Cl| · A / (2 m)
  *
- * === Why Downforce Matters ===
+ * which solves in closed form:
  *
- * Downforce increases the normal force on tires without adding mass.
- * More normal force = more friction force available.
- * This is why F1 cars can corner at 5-6g while road cars max out at ~1g.
+ *   v² = μ · g / (κ − μ · q)
  *
- * However, there's a catch: downforce is proportional to v².
- * So we need to solve iteratively or use the pre-computed lateral
- * acceleration limit that accounts for this.
+ * === Banking ===
+ *
+ * A road banked by θ into the turn tips part of the weight into the
+ * cornering direction and part of the cornering load into the road:
+ *
+ *   v²·κ·cos θ − g·sin θ = μ · (g·cos θ + v²·κ·sin θ + q·v²)
+ *
+ *   v² = g · (μ·cos θ + sin θ) / (κ · (cos θ − μ·sin θ) − μ · q)
+ *
+ * With θ = 0 this is the flat-road formula.
+ *
+ * If the denominator is not positive, the grip grows at least as fast as
+ * the demand: no speed is too fast for this corner, and the car is limited
+ * by power and drag instead.
  *
  * === Curvature Sign Convention ===
  *
- * Curvature κ = 1/radius
- *   - κ = 0: straight line (infinite radius, no lateral limit)
- *   - κ > 0: left turn
- *   - κ < 0: right turn
- *   - |κ| larger = tighter turn
+ *   - κ = 0: straight line (no lateral limit)
+ *   - κ > 0: left turn, κ < 0: right turn
  *
- * We use absolute value since direction doesn't affect speed limit.
+ * We use the absolute value since direction doesn't affect the speed limit.
+ * The camber is measured into the turn whichever way it goes.
  *
- * @param segment Track segment with curvature and grip info
- * @param vehicle Vehicle parameters (mass, aero)
- * @param state Current car state (used for downforce calculation)
- * @return Maximum safe cornering speed in m/s
+ * @param segment Track segment with curvature, grip and camber
+ * @param vehicle Vehicle parameters (mass, aero, tyres)
+ * @return Maximum steady cornering speed in m/s
  */
 double max_speed(const TrackSegment& segment,
-                 const VehicleParams& vehicle,
-                 const CarState& state) {
+                 const VehicleParams& vehicle) {
 
     const double curvature = std::abs(segment.curvature);
 
     // Straight section: no lateral acceleration limit
-    // Return a very large number (effectively unlimited by cornering)
-    // Actual speed will be limited by engine power and drag
     if (curvature < 1e-9) {
         return std::numeric_limits<double>::max();
     }
 
-    // Get the lateral acceleration limit at current state
-    // This already accounts for downforce at the current velocity
-    const double a_lat_max = physics::compute_lateral_acc_limit(state, vehicle, segment);
+    const double mu = vehicle.tyre.base_grip * segment.grip;
+    // Downforce per unit mass and per v² (negative for a car with lift)
+    const double q = 0.5 * constants::air_density * (-vehicle.aero.lift_coefficient) * vehicle.aero.frontal_area / vehicle.mass;
+    const double cos_bank = std::cos(segment.camber);
+    const double sin_bank = std::sin(segment.camber);
 
-    // Guard against zero or negative grip (shouldn't happen, but be safe)
-    if (a_lat_max <= 0.0) {
+    const double numerator = constants::g * (mu * cos_bank + sin_bank);
+    const double denominator = curvature * (cos_bank - mu * sin_bank) - mu * q;
+
+    if (denominator <= 0.0) {
+        return std::numeric_limits<double>::max();
+    }
+    if (numerator <= 0.0) {
         return 0.0;
     }
 
-    // v_max = sqrt(a_lat_max / curvature)
-    // Derivation: a_lat = v² * curvature → v = sqrt(a_lat / curvature)
-    return std::sqrt(a_lat_max / curvature);
+    return std::sqrt(numerator / denominator);
+}
+
+double max_speed(const TrackSegment& segment,
+                 const VehicleParams& vehicle,
+                 const CarState& /* state */) {
+    return max_speed(segment, vehicle);
 }
 
 } // namespace physics::lateral

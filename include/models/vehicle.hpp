@@ -2,6 +2,7 @@
 
 #include "models/aero.hpp"
 #include "models/drivetrain.hpp"
+#include "models/tyre.hpp"
 #include "core/units.hpp"
 
 struct VehicleParams {
@@ -13,4 +14,5 @@ struct VehicleParams {
 
     Aero aero;
     Drivetrain drivetrain;
+    TyreParams tyre;
 };

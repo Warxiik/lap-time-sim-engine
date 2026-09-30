@@ -1,6 +1,5 @@
 #include "sim/step.hpp"
 #include "physics/vehicle_dynamics.hpp"
-#include "physics/lateral.hpp"
 
 #include <cmath>
 #include <algorithm>
@@ -35,19 +34,15 @@ static const TrackSegment& find_segment(const Track& track, double position) {
  *
  * This is the main simulation step function that:
  *   1. Finds the current track segment
- *   2. Enforces the cornering speed limit
- *   3. Calls the physics integrator to update state
+ *   2. Calls the physics integrator to update state
  *
- * === Speed Limiting ===
+ * === No Speed Clamp ===
  *
- * Before integrating, we check if current speed exceeds the lateral
- * grip limit for the current corner. If so, we clamp to that limit.
- * This represents the physical reality that you can't corner faster
- * than grip allows — the car would slide off track.
- *
- * In a more sophisticated model, exceeding the limit would trigger
- * understeer/oversteer dynamics. For our point-mass model, we simply
- * enforce the limit as a hard constraint.
+ * The speed is never cut to the corner limit. The tyres limit what the
+ * engine and brakes can do (the friction ellipse in vehicle_dynamics.cpp),
+ * and the driver model brakes early enough to reach each corner at its
+ * limit. A car pushed into a corner too fast keeps the speed it has: it has
+ * no grip left to brake with there, just as a real car would run wide.
  *
  * === Integration ===
  *
@@ -70,16 +65,6 @@ void advance(CarState& state,
     // Find current track segment based on position
     const TrackSegment& segment = find_segment(track, state.s);
 
-    // Calculate maximum cornering speed for this segment
-    const double v_max_lateral = physics::lateral::max_speed(segment, vehicle, state);
-
-    // Enforce cornering speed limit
-    // This is a simplification — in reality, exceeding grip causes sliding
-    // For our point-mass model, we treat it as a hard constraint
-    if (state.v > v_max_lateral) {
-        state.v = v_max_lateral;
-    }
-
     // Delegate to physics integrator for force calculation and state update
     physics::step_longitudinal(
         state,
@@ -92,13 +77,6 @@ void advance(CarState& state,
 
     // Ensure velocity doesn't go negative (no reversing in this model)
     state.v = std::max(0.0, state.v);
-
-    // Re-check lateral limit after integration
-    // (velocity may have increased beyond what the corner allows)
-    const double v_max_after = physics::lateral::max_speed(segment, vehicle, state);
-    if (state.v > v_max_after) {
-        state.v = v_max_after;
-    }
 }
 
 } // namespace step
