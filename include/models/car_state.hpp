@@ -14,6 +14,8 @@ struct CarState {
     int gear;
     double engine_rpm;
 
-    // Tire state
-    TyreState tyres;
+    // Consumables: what is left of the fuel, and each axle's tyres
+    double fuel = 0.0;  // kg
+    TyreState front_tyres;
+    TyreState rear_tyres;
 };

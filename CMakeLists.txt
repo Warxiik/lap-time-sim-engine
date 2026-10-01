@@ -49,6 +49,8 @@ add_library(Lap_Time_Sim_Engine
         include/sim/braking_envelope.hpp
         include/sim/segment_index.hpp
         include/sim/gear_map.hpp
+        include/physics/tyre_condition.hpp
+        include/models/fuel.hpp
         src/io/track_loader.cpp
         src/io/vehicle_loader.cpp
         src/io/telemetry_writer.cpp
@@ -58,6 +60,7 @@ add_library(Lap_Time_Sim_Engine
         src/sim/braking_envelope.cpp
         src/sim/segment_index.cpp
         src/sim/gear_map.cpp
+        src/physics/tyre_condition.cpp
         src/physics/longitudinal.cpp
         src/physics/lateral.cpp
         src/physics/aero.cpp
@@ -114,6 +117,8 @@ if(LTS_BUILD_TESTS)
             tests/sim/test_driver_model.cpp
             tests/sim/test_segment_index.cpp
             tests/sim/test_gear_map.cpp
+            tests/sim/test_stint.cpp
+            tests/physics/test_tyre_condition.cpp
             tests/io/test_track_loader.cpp
             tests/io/test_vehicle_loader.cpp
     )

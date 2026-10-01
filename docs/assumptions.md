@@ -109,19 +109,17 @@ mu_effective = mu_base * (F_z_ref / F_z)^n
 
 ---
 
-### 6. No Tire Thermal Model
+### 6. Lumped Tire Condition (optional)
 
-**Assumption:** Tires operate at optimal temperature always.
+**Assumption:** Without `VehicleParams::tyre_condition` the tyres operate at their friction all stint long. With it, each axle is one representative tyre with two thermal nodes, wear and a pressure, and its sliding work is inferred from the grip it uses, not from a slip the point mass does not have (*Stints* in physics_model.md).
 
 **Justification:**
-- Thermal modeling requires detailed tire data
-- Adds significant complexity
-- Out-lap/in-lap effects are secondary
+- The model it follows (a 6-DOF car's four tyres) has the same nodes, wear law and grip curves, so its parameters carry over
+- The inferred sliding work is a single scale (`sliding_work`) away from the real one, and a calibration fits it
 
 **Impact:**
-- No tire warm-up phase
-- No degradation over stint
-- Cannot optimize tire strategy
+- Warm-up, degradation over a stint and the cliff are there; per-wheel differences (the outside tyre, a locked wheel) are not
+- A driven axle at its traction limit slides at its peak slip in the model, where a driver or traction control would hold it below
 
 ---
 
@@ -299,7 +297,7 @@ mu_effective = mu_base * (F_z_ref / F_z)^n
 | Point mass | Low | High |
 | No weight transfer | Low-Medium | Medium |
 | Linear friction | Low | Low |
-| No thermal model | Medium (for stints) | High |
+| Lumped tyre condition | Low-Medium (for stints) | Medium |
 | Constant aero | Low | Medium |
 | Envelope driver (no margin) | Low-Medium | Low |
 | Centerline racing | Medium | High |
