@@ -18,7 +18,7 @@
  * speed anywhere on the lap from which every corner ahead can still be made.
  *   1. Full throttle while that keeps the car under the envelope
  *   2. Otherwise exactly the throttle or brake that lands the car on it
- *   3. Select appropriate gear based on engine RPM
+ *   3. Drive each speed in the gear with the most force (select_gear)
  *
  * Braking starts as late as the car's own brakes and tyres allow, and the
  * car reaches each corner at the corner's speed limit.
@@ -48,9 +48,9 @@ public:
      *   3. Full throttle if that stays under it; otherwise the throttle or
      *      brake that meets it
      *
-     * @param state Current car state (position, velocity)
+     * @param state Current car state (position, velocity, gear and RPM)
      * @param vehicle Vehicle parameters (for the available forces)
-     * @param track Track definition (segments with curvature)
+     * @param segment The track segment the car is in
      * @param envelope The car's braking envelope on this track
      * @param dt Time step the inputs will be held for (s)
      * @return Control inputs (throttle, brake normalized to [0,1])
@@ -58,33 +58,25 @@ public:
     [[nodiscard]] ControlInput compute_control(
         const CarState& state,
         const VehicleParams& vehicle,
-        const Track& track,
+        const TrackSegment& segment,
         const BrakingEnvelope& envelope,
         double dt) const;
 
     /**
-     * @brief Determines optimal gear for current speed and RPM.
+     * @brief The gear with the most drive force at the car's speed.
      *
-     * Simple algorithm: shift up if RPM exceeds threshold,
-     * shift down if RPM drops below threshold.
+     * Of the gears that keep the engine within its torque curve (at or
+     * under its last RPM), the one whose torque times ratio is largest; top
+     * gear if none does. The gear depends on the speed alone, not on the
+     * gear the car was in, so the lap is the forward curve of the best gear
+     * at every speed, and a small change to the car moves it smoothly.
      *
-     * @param state Current car state
-     * @param vehicle Vehicle parameters (gear ratios, RPM limits)
-     * @return Recommended gear (1-indexed)
+     * @param state Current car state (its speed)
+     * @param vehicle Vehicle parameters (torque curve, gear ratios)
+     * @return Gear (1-indexed)
      */
     [[nodiscard]] int select_gear(
         const CarState& state,
         const VehicleParams& vehicle) const;
 
-private:
-    /**
-     * @brief Finds the track segment containing the given position.
-     *
-     * @param track Track definition
-     * @param position Distance along track (m)
-     * @return Index of segment containing position
-     */
-    [[nodiscard]] size_t find_segment_index(
-        const Track& track,
-        double position) const;
 };

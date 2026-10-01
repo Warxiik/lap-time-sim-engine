@@ -177,8 +177,8 @@ mu_effective = mu_base * (F_z_ref / F_z)^n
 **Assumption:** Engine doesn't hit rev limiter (driver always shifts before).
 
 **Impact:**
-- Could allow unrealistic RPM in edge cases
-- Gear selection algorithm handles this in practice
+- The driver picks the gear with the most drive force among those within the torque curve, so the engine only passes the curve's last RPM in top gear
+- Past it, the torque is held at the curve's last value (no limiter)
 
 ---
 

@@ -7,34 +7,11 @@
 namespace step {
 
 /**
- * @brief Finds the track segment containing the given position.
- *
- * @param track Track definition
- * @param position Distance along track (m)
- * @return Reference to the segment at that position
- */
-static const TrackSegment& find_segment(const Track& track, double position) {
-    // Handle positions beyond track length (wrap around)
-    const double wrapped_pos = std::fmod(position, track.total_length);
-
-    double accumulated = 0.0;
-    for (const auto& seg : track.segments) {
-        accumulated += seg.length;
-        if (wrapped_pos < accumulated) {
-            return seg;
-        }
-    }
-
-    // Fallback to last segment
-    return track.segments.back();
-}
-
-/**
  * @brief Advances the simulation state by one timestep.
  *
- * This is the main simulation step function that:
- *   1. Finds the current track segment
- *   2. Calls the physics integrator to update state
+ * This is the main simulation step function: it calls the physics
+ * integrator in the segment the car is in (the simulator finds it, once per
+ * step, with its SegmentIndex).
  *
  * === No Speed Clamp ===
  *
@@ -52,18 +29,15 @@ static const TrackSegment& find_segment(const Track& track, double position) {
  *
  * @param state Car state to update (modified in place)
  * @param vehicle Vehicle parameters
- * @param track Track definition
+ * @param segment The track segment the car is in
  * @param control Driver inputs (throttle, brake)
  * @param dt Time step (seconds)
  */
 void advance(CarState& state,
              const VehicleParams& vehicle,
-             const Track& track,
+             const TrackSegment& segment,
              const ControlInput& control,
              seconds dt) {
-
-    // Find current track segment based on position
-    const TrackSegment& segment = find_segment(track, state.s);
 
     // Delegate to physics integrator for force calculation and state update
     physics::step_longitudinal(

@@ -9,7 +9,7 @@ namespace physics {
 
     /// The longitudinal forces available to the car in its current state (N, all >= 0).
     struct LongitudinalForces {
-        double engine;  // at the wheels at full throttle in the current gear
+        double engine;  // at the wheels at full throttle in the current gear, within the drive's traction (ellipse)
         double brakes;  // at full brake
         double grip;    // what the tyres can transmit along the road (friction ellipse)
         double drag;    // aerodynamic drag
@@ -23,6 +23,9 @@ namespace physics {
 
     /// Force the tyres transmit for these pedals: the engine's minus the brakes', within the grip (N, + forward).
     double tyre_force(const LongitudinalForces& forces, double throttle, double brake);
+
+    /// Engine speed at `velocity` (m/s) in `gear` (1-indexed; 0 for a gear the gearbox does not have), RPM.
+    double engine_rpm(double velocity, int gear, const VehicleParams& vehicle);
 
     void step_longitudinal(
         CarState& state,

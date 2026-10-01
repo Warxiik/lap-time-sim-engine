@@ -1,79 +1,49 @@
 #include "sim/driver_model.hpp"
 #include "physics/vehicle_dynamics.hpp"
+#include "core/math.hpp"
 
 #include <cmath>
 #include <algorithm>
 #include <limits>
 
 /**
- * @brief Finds the track segment index for a given track position.
+ * @brief The gear with the most drive force at the car's speed.
  *
- * Track segments are laid out sequentially. We iterate through and
- * accumulate length until we find the segment containing our position.
+ * Every gear's engine speed follows from the car's (engine_rpm); the drive
+ * force in a gear is the torque there times the gear's ratio (the final drive,
+ * the efficiency and the wheel radius are the same in every gear). Gears that
+ * would take the engine past its torque curve's last RPM are left out unless
+ * none is left, and of the rest the strongest wins (the lower gear on a tie).
  *
- * Time complexity: O(n) where n = number of segments
- * For performance-critical code, this could be optimized with binary search
- * or a lookup table, but for typical track sizes (~100 segments) this is fine.
- */
-size_t DriverModel::find_segment_index(const Track& track, double position) const {
-    // Handle wraparound for positions beyond track length
-    const double wrapped_pos = std::fmod(position, track.total_length);
-
-    double accumulated = 0.0;
-    for (size_t i = 0; i < track.segments.size(); ++i) {
-        accumulated += track.segments[i].length;
-        if (wrapped_pos < accumulated) {
-            return i;
-        }
-    }
-
-    // Should not reach here if track is properly defined
-    return track.segments.size() - 1;
-}
-
-/**
- * @brief Simple gear selection based on engine RPM.
- *
- * Strategy:
- *   - Shift up when RPM exceeds 90% of max (approaching rev limiter)
- *   - Shift down when RPM drops below 40% of max (lugging the engine)
- *
- * Real F1 cars use much more sophisticated logic considering:
- *   - Torque curves and power bands
- *   - Upcoming track features
- *   - Tire slip optimization
- *   - Energy recovery modes
+ * Shifting at RPM thresholds instead makes the gear depend on the gear before
+ * it: a car leaving a corner just above the downshift RPM stays a gear too
+ * high down the whole straight after it, just below it drops a gear, and a
+ * few kilograms decide which.
  */
 int DriverModel::select_gear(const CarState& state,
                              const VehicleParams& vehicle) const {
     const auto& engine = vehicle.drivetrain.engine;
-    const auto& gearbox = vehicle.drivetrain.gearbox;
-    const int num_gears = static_cast<int>(gearbox.ratios.size());
+    const auto& ratios = vehicle.drivetrain.gearbox.ratios;
+    const int num_gears = static_cast<int>(ratios.size());
+    if (num_gears == 0 || engine.rpm.empty()) {
+        return 1;
+    }
 
-    // Get RPM range from engine data
     const double max_rpm = engine.rpm.back();
-    const double min_rpm = engine.rpm.front();
-
-    // Shift thresholds
-    const double upshift_rpm = max_rpm * 0.90;    // Shift up at 90% of redline
-    const double downshift_rpm = max_rpm * 0.40;  // Shift down at 40% of redline
-
-    int current_gear = state.gear;
-
-    // Clamp to valid range
-    current_gear = std::clamp(current_gear, 1, num_gears);
-
-    // Check for upshift
-    if (state.engine_rpm > upshift_rpm && current_gear < num_gears) {
-        return current_gear + 1;
+    int best = num_gears;
+    double best_force = -std::numeric_limits<double>::infinity();
+    for (int gear = 1; gear <= num_gears; ++gear) {
+        const double rpm = physics::engine_rpm(state.v, gear, vehicle);
+        if (rpm > max_rpm) {
+            continue;  // past the curve: a higher gear
+        }
+        const double force = math::interpolate(engine.rpm, engine.torque, rpm) * ratios[static_cast<size_t>(gear - 1)];
+        if (force > best_force) {
+            best_force = force;
+            best = gear;
+        }
     }
-
-    // Check for downshift
-    if (state.engine_rpm < downshift_rpm && current_gear > 1) {
-        return current_gear - 1;
-    }
-
-    return current_gear;
+    return best;
 }
 
 /**
@@ -94,10 +64,9 @@ int DriverModel::select_gear(const CarState& state,
  */
 ControlInput DriverModel::compute_control(const CarState& state,
                                           const VehicleParams& vehicle,
-                                          const Track& track,
+                                          const TrackSegment& segment,
                                           const BrakingEnvelope& envelope,
                                           double dt) const {
-    const TrackSegment& segment = track.segments[find_segment_index(track, state.s)];
     const physics::LongitudinalForces forces = physics::longitudinal_forces(state, vehicle, segment);
 
     // Where the envelope stands after this step

@@ -6,6 +6,8 @@
 #include "models/telemetry.hpp"
 #include "sim/driver_model.hpp"
 #include "sim/braking_envelope.hpp"
+#include "sim/segment_index.hpp"
+#include "sim/gear_map.hpp"
 #include "sim/step.hpp"
 #include "sim/sim_config.hpp"
 #include "core/units.hpp"
@@ -33,13 +35,15 @@ public:
     const BrakingEnvelope& braking_envelope() const;
 
 private:
-    /// One step: driver inputs, gear, physics. Returns the inputs used.
+    /// One step: gear, driver inputs, physics. Returns the inputs used.
     ControlInput step_once(seconds dt);
 
     Track track_;
     VehicleParams vehicle_;
     SimConfig config_;
     BrakingEnvelope envelope_;
+    SegmentIndex index_;
+    GearMap gears_;
 
     CarState state_;
     Telemetry telemetry_;

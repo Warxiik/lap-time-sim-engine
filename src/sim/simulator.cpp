@@ -1,4 +1,5 @@
 #include "sim/simulator.hpp"
+#include "physics/vehicle_dynamics.hpp"
 
 /**
  * @brief Constructs a simulator with track, vehicle, and configuration.
@@ -6,8 +7,8 @@
  * The simulator takes ownership of track and vehicle data via move semantics.
  * This avoids unnecessary copies of potentially large data structures.
  *
- * The braking envelope the driver follows is computed here, once: it depends
- * only on the track and the car.
+ * The braking envelope the driver follows, the segment index and the shift
+ * speeds are computed here, once: they depend only on the track and the car.
  *
  * @param track Track definition (moved)
  * @param vehicle Vehicle parameters (moved)
@@ -18,6 +19,8 @@ Simulator::Simulator(Track track, VehicleParams vehicle, SimConfig config)
       vehicle_(std::move(vehicle)),
       config_(config),
       envelope_(compute_braking_envelope(track_, vehicle_, config_.envelope_spacing)),
+      index_(track_),
+      gears_(vehicle_),
       state_(),
       telemetry_(),
       driver_()
@@ -37,17 +40,23 @@ Simulator::Simulator(Track track, VehicleParams vehicle, SimConfig config)
 }
 
 /**
- * @brief Advances the car by one step: driver inputs, gear, physics.
+ * @brief Advances the car by one step: gear, driver inputs, physics.
+ *
+ * The gear comes first, with the engine speed it gives, so the driver's
+ * inputs and the step use the same forces.
  */
 ControlInput Simulator::step_once(seconds dt) {
-    // Driver decides throttle/brake from the braking envelope
-    const ControlInput control = driver_.compute_control(state_, vehicle_, track_, envelope_, dt);
+    const TrackSegment& segment = track_.segments[index_.find(state_.s)];
 
-    // Update gear selection based on RPM
-    state_.gear = driver_.select_gear(state_, vehicle_);
+    // The best gear for the speed the car has (DriverModel::select_gear's, from the shift speeds)
+    state_.gear = gears_.gear_at(state_.v);
+    state_.engine_rpm = physics::engine_rpm(state_.v, state_.gear, vehicle_);
+
+    // Driver decides throttle/brake from the braking envelope
+    const ControlInput control = driver_.compute_control(state_, vehicle_, segment, envelope_, dt);
 
     // Advance physics simulation
-    step::advance(state_, vehicle_, track_, control, dt);
+    step::advance(state_, vehicle_, segment, control, dt);
     return control;
 }
 
@@ -55,8 +64,8 @@ ControlInput Simulator::step_once(seconds dt) {
  * @brief Runs the simulation until the car completes the track.
  *
  * Main simulation loop:
- *   1. Compute driver inputs based on current state
- *   2. Update gear selection
+ *   1. Select the gear for the current speed
+ *   2. Compute driver inputs based on current state
  *   3. Advance physics by one timestep
  *   4. Record telemetry
  *   5. Repeat until track completed or time limit reached

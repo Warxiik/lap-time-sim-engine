@@ -110,3 +110,24 @@ TEST(TyreModel, EngineAndBrakesAreLimitedByGrip) {
     EXPECT_DOUBLE_EQ(physics::tyre_force(forces, 0.0, 0.1), -0.1 * forces.brakes);
     EXPECT_DOUBLE_EQ(physics::tyre_force(forces, 1.0, 0.0), std::min(forces.engine, forces.grip));
 }
+
+TEST(TyreModel, DriveTractionSharesTheEllipse) {
+    VehicleParams vehicle = create_plain_vehicle();
+    vehicle.tyre.base_grip = 1.0;
+    vehicle.tyre.longitudinal_grip = 1.0;
+    vehicle.max_drive_force = 3000.0;  // the driven wheels' traction, under the engine's force in second gear
+
+    const CarState state = at_speed(20.0);
+    const physics::LongitudinalForces straight = physics::longitudinal_forces(state, vehicle, corner(0.0));
+    EXPECT_DOUBLE_EQ(straight.engine, 3000.0);
+
+    // Half the lateral grip in use leaves sqrt(3/4) of the drive's traction, as of the tyres' grip.
+    const double half = 0.5 * constants::g / (20.0 * 20.0);
+    const physics::LongitudinalForces cornering = physics::longitudinal_forces(state, vehicle, corner(half));
+    EXPECT_NEAR(cornering.engine, 3000.0 * std::sqrt(0.75), 1e-9);
+    EXPECT_NEAR(cornering.grip, straight.grip * std::sqrt(0.75), 1e-9);
+
+    // At the cornering limit nothing is left to drive with.
+    const physics::LongitudinalForces limit = physics::longitudinal_forces(state, vehicle, corner(constants::g / (20.0 * 20.0)));
+    EXPECT_NEAR(limit.engine, 0.0, 1e-6);
+}
