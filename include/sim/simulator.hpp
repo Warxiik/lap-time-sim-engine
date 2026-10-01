@@ -62,9 +62,10 @@ private:
 
     /// Fuel or tyre condition modelled: the car changes as it drives.
     bool consumables() const;
-    /// The fuel and the tyres after a step that started in `before` and put `tyre_force` through the road.
-    void consume(const CarState& before, const TrackSegment& segment, const ControlInput& control, double tyre_force,
-                 seconds dt);
+    /// The fuel after a step that started in `before`.
+    void burn(const CarState& before, const ControlInput& control, seconds dt);
+    /// The tyres over `dt` from `before`, putting `tyre_force` through the road.
+    void wear_tyres(const CarState& before, const TrackSegment& segment, double tyre_force, seconds dt);
     /// current_ from the car, the fuel left and the tyres' grip.
     void update_vehicle();
     /// A braking envelope for the car as it is now.
@@ -83,7 +84,10 @@ private:
     DriverModel driver_;
 
     double start_mass_ = 0.0;     // kg, the car with its starting fuel
+    int tyre_steps_ = 1;          // steps between updates of the tyres' condition (every 10 ms)
+    int tyre_countdown_ = 0;      // steps until the next one
     double envelope_grip_ = 1.0;  // the tyres' grip the envelope was planned with
+    double envelope_scale_ = 1.0; // √(grip now / envelope_grip_): the driver's speeds between plans
     std::vector<LapRecord> laps_;
     seconds lap_time_ = 0.0;
     bool completed_ = false;

@@ -66,11 +66,12 @@ ControlInput DriverModel::compute_control(const CarState& state,
                                           const VehicleParams& vehicle,
                                           const TrackSegment& segment,
                                           const BrakingEnvelope& envelope,
-                                          double dt) const {
+                                          double dt,
+                                          double envelope_scale) const {
     const physics::LongitudinalForces forces = physics::longitudinal_forces(state, vehicle, segment);
 
     // Where the envelope stands after this step
-    const double allowed = envelope.speed_at(state.s + state.v * dt);
+    const double allowed = envelope.speed_at(state.s + state.v * dt) * envelope_scale;
 
     // Full throttle, if that stays under it
     const double full_throttle_accel = (physics::tyre_force(forces, 1.0, 0.0) - forces.drag) / vehicle.mass;

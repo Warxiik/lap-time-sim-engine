@@ -43,6 +43,7 @@ Simulator::Simulator(Track track, VehicleParams vehicle, SimConfig config)
     // The stint's starting fuel and fresh tyres
     state_.fuel = vehicle_.fuel.mass;
     start_mass_ = vehicle_.mass + vehicle_.fuel.mass;
+    tyre_steps_ = std::max(1, static_cast<int>(std::lround(0.01 / config_.dt)));
     if (vehicle_.tyre_condition.enabled) {
         state_.front_tyres = physics::tyres::fresh(vehicle_.tyre_condition.front);
         state_.rear_tyres = physics::tyres::fresh(vehicle_.tyre_condition.rear);
@@ -87,20 +88,15 @@ void Simulator::update_vehicle() {
 void Simulator::replan() {
     envelope_ = compute_braking_envelope(track_, current_, config_.envelope_spacing);
     envelope_grip_ = vehicle_.tyre_condition.enabled ? std::min(state_.front_tyres.grip, state_.rear_tyres.grip) : 1.0;
+    envelope_scale_ = 1.0;
 }
 
 /**
- * @brief What a step cost in fuel and tyre.
- *
- * Fuel: brake-specific consumption on the crank's work (the throttle's share
- * of the full-load torque, times the engine speed) plus the idle flow.
- *
- * Tyres: each axle's load and forces (physics::tyres::split), the sliding work
- * the grip they use implies, and the two thermal nodes, the pressure and the
- * wear of the axle's representative tyre (physics::tyres::advance).
+ * @brief What a step cost in fuel: brake-specific consumption on the crank's
+ * work (the throttle's share of the full-load torque, times the engine speed)
+ * plus the idle flow.
  */
-void Simulator::consume(const CarState& before, const TrackSegment& segment, const ControlInput& control, double tyre_force,
-                        seconds dt) {
+void Simulator::burn(const CarState& before, const ControlInput& control, seconds dt) {
     if (vehicle_.fuel.bsfc > 0.0 && state_.fuel > 0.0) {
         const Engine& engine = current_.drivetrain.engine;
         const double torque = math::interpolate(engine.rpm, engine.torque, before.engine_rpm);
@@ -108,9 +104,20 @@ void Simulator::consume(const CarState& before, const TrackSegment& segment, con
         const double burnt = (vehicle_.fuel.bsfc * crank_power / 3.6e9 + vehicle_.fuel.idle_flow) * dt;
         state_.fuel = std::max(0.0, state_.fuel - burnt);
     }
+}
 
+/**
+ * @brief What `dt` of driving costs the tyres: each axle's load and forces
+ * (physics::tyres::split), the sliding work the grip they use implies, and the
+ * two thermal nodes, the pressure and the wear of the axle's representative
+ * tyre (physics::tyres::advance).
+ *
+ * The tyres' temperatures move over seconds, so they are updated every 10 ms,
+ * from the forces of that step, rather than every step.
+ */
+void Simulator::wear_tyres(const CarState& before, const TrackSegment& segment, double tyre_force, seconds dt) {
     const TyreConditionParams& condition = vehicle_.tyre_condition;
-    if (condition.enabled) {
+    {
         physics::tyres::AxleWork front;
         physics::tyres::AxleWork rear;
         physics::tyres::split(condition, current_, current_.mass, before.v, tyre_force, segment, front, rear);
@@ -137,25 +144,36 @@ ControlInput Simulator::step_once(seconds dt) {
     state_.engine_rpm = physics::engine_rpm(state_.v, state_.gear, current_);
 
     // Driver decides throttle/brake from the braking envelope
-    const ControlInput control = driver_.compute_control(state_, current_, segment, envelope_, dt);
+    const ControlInput control = driver_.compute_control(state_, current_, segment, envelope_, dt, envelope_scale_);
 
     if (!consumables()) {
         step::advance(state_, current_, segment, control, dt);
         return control;
     }
 
-    // The force the tyres put through the road this step, for what it costs them
+    // What the step costs in fuel, and every 10 ms in tyre (from the force the tyres put through the road)
     const CarState before = state_;
-    const double tyre_force = physics::tyre_force(physics::longitudinal_forces(before, current_, segment), control.throttle,
-                                                  control.brake);
+    const bool tyres = vehicle_.tyre_condition.enabled && --tyre_countdown_ <= 0;
+    const double tyre_force =
+        tyres ? physics::tyre_force(physics::longitudinal_forces(before, current_, segment), control.throttle, control.brake) : 0.0;
     step::advance(state_, current_, segment, control, dt);
-    consume(before, segment, control, tyre_force, dt);
+    burn(before, control, dt);
+    if (tyres) {
+        wear_tyres(before, segment, tyre_force, tyre_steps_ * dt);
+        tyre_countdown_ = tyre_steps_;
+    }
     update_vehicle();
 
-    // Plan the braking again once the grip has moved: the driver must not count on grip the tyres lost.
+    // Between plans the driver takes the envelope's speeds with the grip the tyres have now: corner speeds
+    // and braking distances go with the square root of the grip, as a driver feels it. Once the grip has
+    // moved 2 % from what the envelope was planned with, it is planned again.
     if (vehicle_.tyre_condition.enabled) {
-        const double grip = std::min(state_.front_tyres.grip, state_.rear_tyres.grip);
-        if (std::abs(grip - envelope_grip_) > 0.005 * envelope_grip_) replan();
+        const double ratio = std::min(state_.front_tyres.grip, state_.rear_tyres.grip) / envelope_grip_;
+        if (std::abs(ratio - 1.0) > 0.02) {
+            replan();
+        } else {
+            envelope_scale_ = std::sqrt(ratio);
+        }
     }
     return control;
 }
