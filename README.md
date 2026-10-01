@@ -116,13 +116,14 @@ See [docs/determinism.md](docs/determinism.md) for implementation details.
 
 ## Performance
 
-Typical performance on a modern CPU (Release build):
+Measured with MinGW-w64 GCC 14.2, Release, 1 ms step, on one core:
 
-| Metric | Value |
+| Lap | Time per lap |
 |--------|-------|
-| Throughput | ~500+ laps/second |
-| Lap simulation | < 2ms per lap |
-| Real-time factor | > 40,000x |
+| `benchmark`: a 14-segment, 5 km track, 83 s lap | about 24 ms (about 3,500 times real time) |
+| a 2.3 km racing line in 1,142 segments of 2 m, a 60–68 s lap | about 13–15 ms |
+
+The time grows with the steps a lap takes, not with the segments: each step finds its segment by bisection. `benchmark [iterations]` measures it and checks determinism.
 
 This enables large-scale parameter sweeps and strategy optimization.
 

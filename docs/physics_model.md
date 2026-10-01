@@ -87,6 +87,20 @@ Where:
 
 Engine torque is interpolated from a torque curve (RPM vs torque table).
 
+`max_drive_force` caps it: what the driven wheels transmit on a straight. The driven tyres corner too, so in a corner the cap shrinks by the same friction ellipse as the tyres' grip (see *Tyre Limit*):
+
+```
+F_drive ≤ max_drive_force × ellipse
+```
+
+### Gear Selection
+
+At every step the car is in the gear with the most drive force at its speed: of the gears that keep the engine at or under its torque curve's last RPM, the one with the largest torque × ratio (top gear if none does). The gear depends on the speed alone, so the time integration is the forward curve of the best gear at every speed.
+
+Shifting at RPM thresholds (up at 90 %, down at 40 % of the last RPM, as before) made the gear depend on the gear before it. A car leaving a corner just above the downshift RPM stayed a gear too high down the whole straight after it, and a few kilograms more or less decided which: the lap time jumped by tenths between two masses a kilogram apart.
+
+The simulator works the shift speeds out once per car (`GearMap`): it samples the speeds every 0.05 m/s up to past top gear's last RPM, and bisects each change of gear down to the exact speed. Each step then only looks its speed up among them. The gear is selected first in a step, with the engine speed it gives, so the driver's inputs and the physics use the same forces.
+
 ### Brake Force
 
 The brakes' maximum force is a constant parameter representing the combined limit of:
@@ -255,6 +269,7 @@ Nothing clamps the speed. The car reaches each corner at its limit because it br
 - **Standing lap** (default): from 0.1 m/s at the line.
 - **Flying lap** (`SimConfig::flying_lap`): an untimed out lap from rest first; the clock starts as the car crosses the line at speed, as on a qualifying lap. On a closed circuit that is the speed of every lap after the first.
 - Each telemetry frame carries the time of the state it holds. The lap time is interpolated within the step that crosses the line (and, on a flying lap, the step that crossed it at the start), so it hardly depends on the step size.
+- Each step finds the car's segment once, by bisection over where the segments end (`SegmentIndex`), and hands it to the driver and the physics. A racing line cut into 2 m pieces has more than a thousand segments, and walking along them twice a step was most of a lap's cost.
 
 ---
 

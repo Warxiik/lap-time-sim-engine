@@ -242,3 +242,27 @@ TEST(Lap, BrakesIntoATighteningCorner) {
     }
     EXPECT_LT(worst_usage, 1.005);
 }
+
+/**
+ * @test The lap time moves smoothly with the car's mass: no step from one mass to the next jumps.
+ *
+ * A gear chosen by rpm thresholds remembers the gear it was in: leaving a corner just above the
+ * downshift rpm, the car stayed a gear too high all the way down the next straight, and a few kilograms
+ * more or less flipped which gear it left in. Every gram then cost the same, except at the flips.
+ */
+TEST(Lap, LapTimeIsSmoothInMass) {
+    const Track track = create_test_track();
+    VehicleParams vehicle = create_test_vehicle();
+    std::vector<double> laps;
+    for (int k = 0; k <= 60; ++k) {
+        vehicle.mass = 1150.0 + 2.0 * k;
+        laps.push_back(lap_time(track, vehicle, true));
+    }
+    const double per_kg = (laps.back() - laps.front()) / 120.0;
+    ASSERT_GT(per_kg, 0.0);
+    for (size_t k = 1; k < laps.size(); ++k) {
+        const double step = laps[k] - laps[k - 1];
+        EXPECT_GT(step, 0.0) << "at " << 1150.0 + 2.0 * k << " kg";
+        EXPECT_LT(step, 3.0 * 2.0 * per_kg) << "at " << 1150.0 + 2.0 * k << " kg";
+    }
+}

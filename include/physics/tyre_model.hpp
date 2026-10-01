@@ -22,4 +22,8 @@ namespace physics {
     /// Largest force the tyres can transmit along the road for driving or braking now (N).
     double longitudinal_grip_force(const CarState& state, const VehicleParams& vehicle, const TrackSegment& trackSeg);
 
+    /// As above, with the friction ellipse's share already worked out (compute_traction_scale).
+    double longitudinal_grip_force(const CarState& state, const VehicleParams& vehicle, const TrackSegment& trackSeg,
+                                   double traction_scale);
+
 } // namespace physics

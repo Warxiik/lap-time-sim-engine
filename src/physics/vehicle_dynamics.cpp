@@ -26,9 +26,9 @@ namespace physics {
  * @param vehicle Vehicle parameters
  * @return Engine RPM
  */
-static double compute_rpm(double velocity,
-                          int gear,
-                          const VehicleParams& vehicle) {
+double engine_rpm(double velocity,
+                  int gear,
+                  const VehicleParams& vehicle) {
     const Gearbox& gearbox = vehicle.drivetrain.gearbox;
 
     // Validate gear
@@ -57,6 +57,10 @@ static double compute_rpm(double velocity,
  * (longitudinal_grip_force): all of the longitudinal grip on a straight,
  * less in a corner, none at the cornering limit.
  *
+ * The driven tyres corner too, so the drive's own traction limit
+ * (VehicleParams::max_drive_force, what the driven wheels transmit on a
+ * straight) shrinks by the same ellipse.
+ *
  * @param state Current car state (speed, gear, RPM)
  * @param vehicle Vehicle parameters
  * @param trackSeg Current track segment (grip, curvature, camber)
@@ -66,9 +70,10 @@ LongitudinalForces longitudinal_forces(const CarState& state,
                                        const VehicleParams& vehicle,
                                        const TrackSegment& trackSeg) {
     LongitudinalForces forces{};
-    forces.engine = longitudinal::max_drive_force(vehicle, state);
+    const double ellipse = compute_traction_scale(state, vehicle, trackSeg);
+    forces.engine = std::min(longitudinal::max_drive_force(vehicle, state), vehicle.max_drive_force * ellipse);
     forces.brakes = longitudinal::max_brake_force(vehicle, state);
-    forces.grip = longitudinal_grip_force(state, vehicle, trackSeg);
+    forces.grip = longitudinal_grip_force(state, vehicle, trackSeg, ellipse);
     forces.drag = aero::drag_force(vehicle, state);
     return forces;
 }
@@ -161,7 +166,7 @@ void step_longitudinal(CarState& state,
 
     // === Step 5: Update engine RPM ===
     // RPM is determined by wheel speed and gear ratio
-    state.engine_rpm = compute_rpm(state.v, state.gear, vehicle);
+    state.engine_rpm = engine_rpm(state.v, state.gear, vehicle);
 }
 
 } // namespace physics

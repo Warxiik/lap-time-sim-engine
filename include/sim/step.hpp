@@ -8,10 +8,11 @@
 
 namespace step {
 
+        /// Advances `state` by `dt` in `segment` (the one the car is in) with the driver's inputs.
         void advance(
             CarState& state,
             const VehicleParams& vehicle,
-            const Track& track,
+            const TrackSegment& segment,
             const ControlInput& control,
             seconds dt
         );

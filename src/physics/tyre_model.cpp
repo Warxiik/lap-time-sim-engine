@@ -138,9 +138,16 @@ double compute_traction_scale(const CarState& state,
 double longitudinal_grip_force(const CarState& state,
                                const VehicleParams& vehicle,
                                const TrackSegment& trackSeg) {
+    return longitudinal_grip_force(state, vehicle, trackSeg, compute_traction_scale(state, vehicle, trackSeg));
+}
+
+double longitudinal_grip_force(const CarState& state,
+                               const VehicleParams& vehicle,
+                               const TrackSegment& trackSeg,
+                               double traction_scale) {
     const double mu = vehicle.tyre.longitudinal_grip * trackSeg.grip;
     const double normal = std::max(0.0, normal_acceleration(state.v, vehicle, trackSeg));
-    return mu * vehicle.mass * normal * compute_traction_scale(state, vehicle, trackSeg);
+    return mu * vehicle.mass * normal * traction_scale;
 }
 
 } // namespace physics
