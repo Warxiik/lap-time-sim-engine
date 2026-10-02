@@ -1,7 +1,18 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+
 #include "core/units.hpp"
 #include "models/tyre.hpp"
+
+/// Where each tyre is in CarState::tyres.
+struct TyreIndex {
+    static constexpr std::size_t front_left = 0;
+    static constexpr std::size_t front_right = 1;
+    static constexpr std::size_t rear_left = 2;
+    static constexpr std::size_t rear_right = 3;
+};
 
 struct CarState {
     meters s; // Position along the track
@@ -14,8 +25,7 @@ struct CarState {
     int gear;
     double engine_rpm;
 
-    // Consumables: what is left of the fuel, and each axle's tyres
+    // Consumables: what is left of the fuel, and the tyres (TyreIndex)
     double fuel = 0.0;  // kg
-    TyreState front_tyres;
-    TyreState rear_tyres;
+    std::array<TyreState, 4> tyres{};
 };

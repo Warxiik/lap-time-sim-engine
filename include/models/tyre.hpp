@@ -23,8 +23,8 @@ struct TyreParams {
 // The tyres' condition multiplies TyreParams' friction. It follows the model
 // of the game the engine runs in (Understeer's S1 tyre: a tread and a carcass
 // node, wear from sliding work, pressure from the carcass temperature), with
-// one representative tyre per axle carrying half of the axle's load and forces.
-// Off by default: a car's grip is then TyreParams' all stint long.
+// a left and a right tyre on each axle, the corners' lateral load transfer
+// between them. Off by default: a car's grip is then TyreParams' all stint long.
 
 /// Temperature: two thermal nodes per tyre, and grip from the tread's.
 struct TyreThermalParams {
@@ -69,13 +69,27 @@ struct TyrePressureParams {
     double wear_at_window = 0.25;     // extra wear one window from the optimum (growing with its square)
 };
 
-/// One axle's tyres.
+/// One axle's tyres (both alike).
 struct AxleTyres {
     TyreThermalParams thermal;
     TyreWearParams wear;
     TyrePressureParams pressure;
     double peak_slip_angle = 0.12;  // rad, slip angle of the peak lateral force
     double peak_slip_ratio = 0.10;  // slip ratio of the peak longitudinal force
+    double sliding_work = 1.0;      // scale on this axle's modelled sliding work (what a calibration fits)
+    // The tyres' own friction, that the grip they use is measured against (0: TyreParams'). A car whose
+    // TyreParams are lowered to a driver's pace (a calibration) still uses only that share of its tyres:
+    // measured against the lowered friction, the weaker axle would always run at its peak slip.
+    double mu_lateral = 0.0;
+    double mu_longitudinal = 0.0;
+    // Load moved from the axle's inside tyre onto its outside one, per newton of the car's lateral force.
+    // For a car in steady roll: its share of the roll stiffness, (h − h_roll axis) · K / ΣK / track, plus
+    // w · h_rc / track if its links carry the side force at the roll centre. 0: both tyres alike.
+    double lateral_transfer = 0.0;
+    // Friction falls off with a tyre's load: μ × (1 + load_sensitivity · (N / reference_load − 1)), never
+    // below 30 %. Of the axle's two tyres the loaded one gives less than its share of the load. 0: none.
+    double load_sensitivity = 0.0;
+    double reference_load = 2500.0;  // N on one tyre
 };
 
 /**
@@ -86,12 +100,21 @@ struct AxleTyres {
  * how much of its grip each axle uses: the tyre's force rises with its
  * normalised slip s as 2s − s² up to the peak at s = 1, so an axle using a
  * share u of its grip slides at s = 1 − √(1 − u) of its peak slip.
- * `sliding_work` scales the result, and is what a calibration fits.
+ * Each axle's `sliding_work` scales its result, and is what a calibration
+ * fits: a driver or traction control holds a driven axle below its peak slip,
+ * and steering slip works the front harder than its share of the force says.
  *
  * The axles share the forces as a car's do: the lateral force by the static
  * weight on each (the yaw balance of a steady corner), braking by the brake
  * bias, driving all on the driven axle; and the load by the static weight, the
- * downforce's balance and the longitudinal load transfer.
+ * downforce's balance and the longitudinal load transfer. Across an axle, a
+ * corner moves load onto the outside tyre (AxleTyres::lateral_transfer; a
+ * positive curvature turns left, loading the right-hand tyres). Both tyres
+ * slip alike, so each takes the axle's forces, and its work, in proportion to
+ * its load times its friction there (its grip, and its load sensitivity).
+ *
+ * The driver drives to the weakest of the four tyres, the one that would let go
+ * first, feeling its grip over `feel_time` seconds.
  */
 struct TyreConditionParams {
     bool enabled = false;
@@ -102,12 +125,12 @@ struct TyreConditionParams {
     double brake_front = 0.6;               // share of the braking force at the front
     bool front_driven = false;
     double cg_height_over_wheelbase = 0.2;  // longitudinal load transfer: ΔN = m·a·h/L
-    double sliding_work = 1.0;              // scale on the modelled sliding work
     double ambient_temp = 20.0;             // °C
     double track_temp = 25.0;               // °C
+    double feel_time = 0.0;                 // s over which the driver feels the weakest tyre's grip (0: at once)
 };
 
-/// One axle's tyres now.
+/// One tyre now.
 struct TyreState {
     double tread_temp = 20.0;   // °C
     double carcass_temp = 20.0; // °C

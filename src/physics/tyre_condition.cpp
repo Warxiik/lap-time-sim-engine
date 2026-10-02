@@ -48,6 +48,16 @@ TyreState fresh(const AxleTyres& p) {
     return s;
 }
 
+TyreState average(const TyreState& a, const TyreState& b) {
+    TyreState s;
+    s.tread_temp = 0.5 * (a.tread_temp + b.tread_temp);
+    s.carcass_temp = 0.5 * (a.carcass_temp + b.carcass_temp);
+    s.wear = 0.5 * (a.wear + b.wear);
+    s.pressure = 0.5 * (a.pressure + b.pressure);
+    s.grip = 0.5 * (a.grip + b.grip);
+    return s;
+}
+
 void split(const TyreConditionParams& p, const VehicleParams& vehicle, double mass, double v, double tyre_force,
            const TrackSegment& segment, AxleWork& front, AxleWork& rear) {
     CarState at_speed{};
@@ -64,6 +74,17 @@ void split(const TyreConditionParams& p, const VehicleParams& vehicle, double ma
     front.force_lat = lateral * p.weight_front;
     rear.force_lat = lateral * (1.0 - p.weight_front);
 
+    // Across each axle the corner moves load onto the outside tyre. The tyres push the car towards the
+    // corner's inside (left for a positive curvature, less the banking's share), so the load goes right.
+    const double towards_left = v * v * segment.curvature * std::cos(segment.camber) - constants::g * std::sin(segment.camber);
+    const double signed_lateral = towards_left >= 0.0 ? lateral : -lateral;
+    const auto right_share = [signed_lateral](const AxleTyres& axle, double load) {
+        if (load <= 0.0) return 0.5;
+        return std::clamp(0.5 + axle.lateral_transfer * signed_lateral / load, 0.0, 1.0);
+    };
+    front.right_share = right_share(p.front, front.load);
+    rear.right_share = right_share(p.rear, rear.load);
+
     if (tyre_force >= 0.0) {
         front.force_long = p.front_driven ? tyre_force : 0.0;
         rear.force_long = p.front_driven ? 0.0 : tyre_force;
@@ -73,25 +94,23 @@ void split(const TyreConditionParams& p, const VehicleParams& vehicle, double ma
     }
 }
 
-double sliding_power(const AxleTyres& p, const AxleWork& work, double v, double sliding_work) {
+double sliding_power(const AxleTyres& p, const AxleWork& work, double grip, double v) {
     if (work.load <= 0.0 || v <= 0.0) return 0.0;
-    const double ux = std::abs(work.force_long) / std::max(work.mu_long * work.load, 1e-9);
-    const double uy = std::abs(work.force_lat) / std::max(work.mu_lat * work.load, 1e-9);
+    const double ux = std::abs(work.force_long) / std::max(work.mu_long * grip * work.load, 1e-9);
+    const double uy = std::abs(work.force_lat) / std::max(work.mu_lat * grip * work.load, 1e-9);
     const double u = std::sqrt(ux * ux + uy * uy);
     if (u <= 0.0) return 0.0;
     // The force rises with the normalised slip s as 2s − s²: the grip used tells the slip.
     const double s = 1.0 - std::sqrt(1.0 - std::min(u, 1.0));
     const double slide_long = s * ux / u * p.peak_slip_ratio * v;
     const double slide_lat = std::tan(s * uy / u * p.peak_slip_angle) * v;
-    return 0.5 * (std::abs(work.force_long) * slide_long + std::abs(work.force_lat) * slide_lat) * sliding_work;
+    return (std::abs(work.force_long) * slide_long + std::abs(work.force_lat) * slide_lat) * p.sliding_work;
 }
 
-void advance(const AxleTyres& p, const TyreConditionParams& condition, const AxleWork& work, double v, double dt,
-             TyreState& state) {
+void advance_tyre(const AxleTyres& p, const TyreConditionParams& condition, double load, double sliding, double v,
+                  double dt, TyreState& state) {
     const TyreThermalParams& th = p.thermal;
     const TyrePressureParams& pr = p.pressure;
-    const double load = 0.5 * work.load;  // one of the axle's two tyres
-    const double sliding = sliding_power(p, work, v, condition.sliding_work);
 
     const double surface = state.tread_temp;
     const double carcass = state.carcass_temp;
@@ -113,6 +132,26 @@ void advance(const AxleTyres& p, const TyreConditionParams& condition, const Axl
     state.wear = std::min(1.0, state.wear + dt * we.rate * sliding * overheat * (1.0 + pr.wear_at_window * off_optimum * off_optimum));
 
     state.grip = temperature_grip(th, state.tread_temp) * wear_grip(we, state.wear) * pressure_grip(pr, state.pressure);
+}
+
+double load_factor(const AxleTyres& p, double load) {
+    if (p.load_sensitivity == 0.0 || p.reference_load <= 0.0) return 1.0;
+    return std::max(0.3, 1.0 + p.load_sensitivity * (load / p.reference_load - 1.0));
+}
+
+void advance(const AxleTyres& p, const TyreConditionParams& condition, const AxleWork& work, double v, double dt,
+             TyreState& left, TyreState& right) {
+    const double right_load = work.right_share * work.load;
+    const double left_load = work.load - right_load;
+    // The axle's grip is its tyres' friction, each on its load; each takes the forces, and the work, by its
+    // share of it.
+    const double left_force = left.grip * load_factor(p, left_load) * left_load;
+    const double right_force = right.grip * load_factor(p, right_load) * right_load;
+    const double grip = work.load > 0.0 ? (left_force + right_force) / work.load : 0.0;
+    const double right_part = left_force + right_force > 0.0 ? right_force / (left_force + right_force) : work.right_share;
+    const double sliding = sliding_power(p, work, grip, v);
+    advance_tyre(p, condition, left_load, (1.0 - right_part) * sliding, v, dt, left);
+    advance_tyre(p, condition, right_load, right_part * sliding, v, dt, right);
 }
 
 } // namespace physics::tyres

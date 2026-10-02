@@ -23,26 +23,38 @@ namespace physics::tyres {
     /// Fresh tyres at the stint's start: both nodes at initial_temp, no wear.
     TyreState fresh(const AxleTyres& p);
 
+    /// Two tyres' mean: each temperature, the wear, the pressure and the grip.
+    TyreState average(const TyreState& a, const TyreState& b);
+
     /// What a step does to one axle's tyres, for the parts that differ by axle.
     struct AxleWork {
-        double load = 0.0;        // N on the axle
-        double force_long = 0.0;  // N along the road (+ driving)
-        double force_lat = 0.0;   // N across it
-        double mu_long = 1.0;     // the axle's friction now (TyreParams × its condition × the surface)
+        double load = 0.0;         // N on the axle
+        double force_long = 0.0;   // N along the road (+ driving)
+        double force_lat = 0.0;    // N across it
+        double mu_long = 1.0;      // the tyres' own friction on this surface, new and at their best
         double mu_lat = 1.0;
+        double right_share = 0.5;  // the share of the load on the right-hand tyre (the lateral load transfer)
     };
 
-    /// The forces and load on each axle when the car of `mass` kg carries `tyre_force` N along the road
-    /// (+ driving) at speed `v` in `segment`.
+    /// The forces and load on each axle, and how each axle's load splits between its tyres, when the car of
+    /// `mass` kg carries `tyre_force` N along the road (+ driving) at speed `v` in `segment`.
     void split(const TyreConditionParams& p, const VehicleParams& vehicle, double mass, double v, double tyre_force,
                const TrackSegment& segment, AxleWork& front, AxleWork& rear);
 
-    /// Sliding power of one of the axle's two tyres (W): its share of the forces times the sliding speed the
-    /// grip it uses implies, times `sliding_work`.
-    double sliding_power(const AxleTyres& p, const AxleWork& work, double v, double sliding_work);
+    /// Sliding power of the axle's two tyres together (W): the forces times the sliding speed the grip they
+    /// use implies (their friction times `grip`, their condition), times the axle's `sliding_work`.
+    double sliding_power(const AxleTyres& p, const AxleWork& work, double grip, double v);
 
-    /// Advances one axle's tyres by `dt` at speed `v`.
+    /// Advances one tyre by `dt` at speed `v`, carrying `load` N and sliding with `sliding` W.
+    void advance_tyre(const AxleTyres& p, const TyreConditionParams& condition, double load, double sliding, double v,
+                      double dt, TyreState& state);
+
+    /// A tyre's friction at `load` N against its friction at its reference load (AxleTyres::load_sensitivity).
+    double load_factor(const AxleTyres& p, double load);
+
+    /// Advances one axle's two tyres by `dt` at speed `v`. Both slip alike, so each takes the axle's forces
+    /// and work in proportion to its load times its friction there (its grip and its load factor).
     void advance(const AxleTyres& p, const TyreConditionParams& condition, const AxleWork& work, double v, double dt,
-                 TyreState& state);
+                 TyreState& left, TyreState& right);
 
 } // namespace physics::tyres

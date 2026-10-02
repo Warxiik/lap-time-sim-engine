@@ -111,15 +111,16 @@ mu_effective = mu_base * (F_z_ref / F_z)^n
 
 ### 6. Lumped Tire Condition (optional)
 
-**Assumption:** Without `VehicleParams::tyre_condition` the tyres operate at their friction all stint long. With it, each axle is one representative tyre with two thermal nodes, wear and a pressure, and its sliding work is inferred from the grip it uses, not from a slip the point mass does not have (*Stints* in physics_model.md).
+**Assumption:** Without `VehicleParams::tyre_condition` the tyres operate at their friction all stint long. With it, there are four tyres, each with two thermal nodes, wear and a pressure. The corners move load across each axle by a fixed transfer per newton of lateral force (a car in steady roll), and each axle's sliding work is inferred from the grip it uses, not from a slip the point mass does not have, then shared between its tyres by their load and grip (*Stints* in physics_model.md). The driver drives to the weakest tyre.
 
 **Justification:**
 - The model it follows (a 6-DOF car's four tyres) has the same nodes, wear law and grip curves, so its parameters carry over
-- The inferred sliding work is a single scale (`sliding_work`) away from the real one, and a calibration fits it
+- The inferred sliding work is a scale per axle (`AxleTyres::sliding_work`) away from the real one, and a calibration fits them
 
 **Impact:**
-- Warm-up, degradation over a stint and the cliff are there; per-wheel differences (the outside tyre, a locked wheel) are not
+- Warm-up, degradation over a stint and the cliff are there, and so is the outside tyre working harder than the inside one; a locked or spinning wheel is not, and nor is roll's transient (the transfer is the steady one at once)
 - A driven axle at its traction limit slides at its peak slip in the model, where a driver or traction control would hold it below
+- Driving to the weakest tyre is a driver's choice, not the car's limit: in a corner the inside tyre carries little of the load, so its grip matters less to the car than the driver gives it
 
 ---
 

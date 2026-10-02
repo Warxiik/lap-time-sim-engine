@@ -45,8 +45,10 @@ Simulator::Simulator(Track track, VehicleParams vehicle, SimConfig config)
     start_mass_ = vehicle_.mass + vehicle_.fuel.mass;
     tyre_steps_ = std::max(1, static_cast<int>(std::lround(0.01 / config_.dt)));
     if (vehicle_.tyre_condition.enabled) {
-        state_.front_tyres = physics::tyres::fresh(vehicle_.tyre_condition.front);
-        state_.rear_tyres = physics::tyres::fresh(vehicle_.tyre_condition.rear);
+        const TyreState front = physics::tyres::fresh(vehicle_.tyre_condition.front);
+        const TyreState rear = physics::tyres::fresh(vehicle_.tyre_condition.rear);
+        state_.tyres = {front, front, rear, rear};
+        felt_grip_ = std::min(front.grip, rear.grip);
     }
     if (consumables()) {
         update_vehicle();
@@ -68,16 +70,21 @@ bool Simulator::consumables() const {
  * @brief The car as it is now.
  *
  * Its mass is the car's with the fuel left. Its friction is the tyres', times
- * the weaker axle's condition for cornering and braking (the axle that lets go
- * first sets the car's limit), and its drive's traction limit follows the
+ * the weakest tyre's condition for cornering and braking (the driver drives to
+ * the tyre that would let go first), and its drive's traction limit follows the
  * driven axle's condition and the car's weight.
  */
+double Simulator::car_grip() const {
+    return vehicle_.tyre_condition.enabled ? felt_grip_ : 1.0;
+}
+
 void Simulator::update_vehicle() {
     current_.mass = vehicle_.mass + state_.fuel;
     double drive = current_.mass / start_mass_;
     if (vehicle_.tyre_condition.enabled) {
-        const double both = std::min(state_.front_tyres.grip, state_.rear_tyres.grip);
-        const double driven = vehicle_.tyre_condition.front_driven ? state_.front_tyres.grip : state_.rear_tyres.grip;
+        const double both = car_grip();
+        const std::size_t first = vehicle_.tyre_condition.front_driven ? TyreIndex::front_left : TyreIndex::rear_left;
+        const double driven = 0.5 * (state_.tyres[first].grip + state_.tyres[first + 1].grip);
         current_.tyre.base_grip = vehicle_.tyre.base_grip * both;
         current_.tyre.longitudinal_grip = vehicle_.tyre.longitudinal_grip * both;
         drive *= driven;
@@ -87,7 +94,7 @@ void Simulator::update_vehicle() {
 
 void Simulator::replan() {
     envelope_ = compute_braking_envelope(track_, current_, config_.envelope_spacing);
-    envelope_grip_ = vehicle_.tyre_condition.enabled ? std::min(state_.front_tyres.grip, state_.rear_tyres.grip) : 1.0;
+    envelope_grip_ = car_grip();
     envelope_scale_ = 1.0;
 }
 
@@ -107,27 +114,33 @@ void Simulator::burn(const CarState& before, const ControlInput& control, second
 }
 
 /**
- * @brief What `dt` of driving costs the tyres: each axle's load and forces
- * (physics::tyres::split), the sliding work the grip they use implies, and the
- * two thermal nodes, the pressure and the wear of the axle's representative
- * tyre (physics::tyres::advance).
+ * @brief What `dt` of driving costs the tyres: each axle's load and forces and
+ * how they split across it (physics::tyres::split), the sliding work the grip
+ * they use implies, and each tyre's two thermal nodes, pressure and wear
+ * (physics::tyres::advance). Then the weakest tyre's grip, as the driver feels
+ * it over TyreConditionParams::feel_time.
  *
  * The tyres' temperatures move over seconds, so they are updated every 10 ms,
  * from the forces of that step, rather than every step.
  */
 void Simulator::wear_tyres(const CarState& before, const TrackSegment& segment, double tyre_force, seconds dt) {
     const TyreConditionParams& condition = vehicle_.tyre_condition;
-    {
-        physics::tyres::AxleWork front;
-        physics::tyres::AxleWork rear;
-        physics::tyres::split(condition, current_, current_.mass, before.v, tyre_force, segment, front, rear);
-        front.mu_long = vehicle_.tyre.longitudinal_grip * before.front_tyres.grip * segment.grip;
-        front.mu_lat = vehicle_.tyre.base_grip * before.front_tyres.grip * segment.grip;
-        rear.mu_long = vehicle_.tyre.longitudinal_grip * before.rear_tyres.grip * segment.grip;
-        rear.mu_lat = vehicle_.tyre.base_grip * before.rear_tyres.grip * segment.grip;
-        physics::tyres::advance(condition.front, condition, front, before.v, dt, state_.front_tyres);
-        physics::tyres::advance(condition.rear, condition, rear, before.v, dt, state_.rear_tyres);
-    }
+    physics::tyres::AxleWork front;
+    physics::tyres::AxleWork rear;
+    physics::tyres::split(condition, current_, current_.mass, before.v, tyre_force, segment, front, rear);
+    // The grip used is the share of the tyres' own friction (TyreParams' unless the axle says otherwise).
+    const auto own = [](double axle, double car) { return axle > 0.0 ? axle : car; };
+    front.mu_long = own(condition.front.mu_longitudinal, vehicle_.tyre.longitudinal_grip) * segment.grip;
+    front.mu_lat = own(condition.front.mu_lateral, vehicle_.tyre.base_grip) * segment.grip;
+    rear.mu_long = own(condition.rear.mu_longitudinal, vehicle_.tyre.longitudinal_grip) * segment.grip;
+    rear.mu_lat = own(condition.rear.mu_lateral, vehicle_.tyre.base_grip) * segment.grip;
+    physics::tyres::advance(condition.front, condition, front, before.v, dt, state_.tyres[TyreIndex::front_left], state_.tyres[TyreIndex::front_right]);
+    physics::tyres::advance(condition.rear, condition, rear, before.v, dt, state_.tyres[TyreIndex::rear_left], state_.tyres[TyreIndex::rear_right]);
+
+    double weakest = 1.0;
+    for (const TyreState& t : state_.tyres) weakest = std::min(weakest, t.grip);
+    felt_grip_ = condition.feel_time > 0.0 ? felt_grip_ + (weakest - felt_grip_) * std::min(1.0, dt / condition.feel_time)
+                                            : weakest;
 }
 
 /**
@@ -168,7 +181,7 @@ ControlInput Simulator::step_once(seconds dt) {
     // and braking distances go with the square root of the grip, as a driver feels it. Once the grip has
     // moved 2 % from what the envelope was planned with, it is planned again.
     if (vehicle_.tyre_condition.enabled) {
-        const double ratio = std::min(state_.front_tyres.grip, state_.rear_tyres.grip) / envelope_grip_;
+        const double ratio = car_grip() / envelope_grip_;
         if (std::abs(ratio - 1.0) > 0.02) {
             replan();
         } else {
@@ -275,8 +288,9 @@ void Simulator::run() {
             const seconds crossing = elapsed_time - dt + (length - before) / (state_.s - before) * dt;
             record.time = crossing - lap_start;
             record.fuel_at_end = state_.fuel;
-            record.front = state_.front_tyres;
-            record.rear = state_.rear_tyres;
+            record.tyres = state_.tyres;
+            record.front = physics::tyres::average(state_.tyres[TyreIndex::front_left], state_.tyres[TyreIndex::front_right]);
+            record.rear = physics::tyres::average(state_.tyres[TyreIndex::rear_left], state_.tyres[TyreIndex::rear_right]);
             laps_.push_back(record);
             lap_start = crossing;
             ++lap;

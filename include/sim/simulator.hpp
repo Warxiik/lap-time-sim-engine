@@ -21,7 +21,8 @@ struct LapRecord {
     seconds time = 0.0;          // line to line
     double fuel_at_start = 0.0;  // kg aboard as the lap began
     double fuel_at_end = 0.0;    // kg aboard as it ended
-    TyreState front;             // each axle's tyres as the lap ended
+    std::array<TyreState, 4> tyres{};  // the tyres as the lap ended (TyreIndex)
+    TyreState front;             // each axle's two, averaged
     TyreState rear;
 };
 
@@ -68,6 +69,9 @@ private:
     void wear_tyres(const CarState& before, const TrackSegment& segment, double tyre_force, seconds dt);
     /// current_ from the car, the fuel left and the tyres' grip.
     void update_vehicle();
+    /// The car's grip for cornering and braking: its weakest tyre's, as the driver feels it (1 without a
+    /// tyre model).
+    double car_grip() const;
     /// A braking envelope for the car as it is now.
     void replan();
 
@@ -86,6 +90,7 @@ private:
     double start_mass_ = 0.0;     // kg, the car with its starting fuel
     int tyre_steps_ = 1;          // steps between updates of the tyres' condition (every 10 ms)
     int tyre_countdown_ = 0;      // steps until the next one
+    double felt_grip_ = 1.0;      // the weakest tyre's grip, as the driver feels it (TyreConditionParams::feel_time)
     double envelope_grip_ = 1.0;  // the tyres' grip the envelope was planned with
     double envelope_scale_ = 1.0; // √(grip now / envelope_grip_): the driver's speeds between plans
     std::vector<LapRecord> laps_;

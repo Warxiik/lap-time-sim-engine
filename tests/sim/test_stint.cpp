@@ -197,3 +197,52 @@ TEST(Stint, PlansItsBrakingForTheTyresItHas) {
     }
     EXPECT_LT(last, first);
 }
+
+/**
+ * @test The track turns left more than right, so with a lateral load transfer the right-hand tyres carry
+ * the corners: they run hotter and wear faster than the left-hand ones, which without it are the same to
+ * the bit. The driver drives to the weakest of the four, as he feels it: at once, or over a long
+ * feel_time still near the fresh tyres he left the line on.
+ */
+TEST(Stint, OutsideTyresWorkHarderAndTheDriverDrivesToTheWeakest) {
+    const Track track = create_test_track();
+    VehicleParams vehicle = with_consumables(create_test_vehicle());
+    vehicle.fuel = FuelParams{};
+    const auto stint_of = [&](double transfer, double feel_time, VehicleParams* now) {
+        VehicleParams v = vehicle;
+        v.tyre_condition.front.lateral_transfer = transfer;
+        v.tyre_condition.rear.lateral_transfer = transfer;
+        v.tyre_condition.feel_time = feel_time;
+        Simulator sim(track, v, stint(4));
+        sim.run();
+        EXPECT_TRUE(sim.completed());
+        if (now != nullptr) *now = sim.vehicle_now();
+        return sim.laps();
+    };
+    const std::vector<LapRecord> alike = stint_of(0.0, 0.0, nullptr);
+    for (const LapRecord& l : alike) {
+        EXPECT_EQ(l.tyres[TyreIndex::front_left].tread_temp, l.tyres[TyreIndex::front_right].tread_temp);
+        EXPECT_EQ(l.tyres[TyreIndex::rear_left].wear, l.tyres[TyreIndex::rear_right].wear);
+    }
+
+    VehicleParams now;
+    const std::vector<LapRecord> loaded = stint_of(0.12, 0.0, &now);
+    const LapRecord& last = loaded.back();
+    EXPECT_GT(last.tyres[TyreIndex::rear_right].tread_temp, last.tyres[TyreIndex::rear_left].tread_temp + 3.0);
+    EXPECT_GT(last.tyres[TyreIndex::front_right].wear, last.tyres[TyreIndex::front_left].wear);
+    EXPECT_GT(last.tyres[TyreIndex::rear_right].wear, last.tyres[TyreIndex::rear_left].wear);
+    // Each axle's record is its two tyres' mean.
+    EXPECT_DOUBLE_EQ(last.rear.wear, 0.5 * (last.tyres[TyreIndex::rear_left].wear + last.tyres[TyreIndex::rear_right].wear));
+    // The car's grip is its weakest tyre's.
+    double weakest = 1.0;
+    for (const TyreState& t : last.tyres) weakest = std::min(weakest, t.grip);
+    EXPECT_NEAR(now.tyre.base_grip, vehicle.tyre.base_grip * weakest, 0.01 * vehicle.tyre.base_grip);
+
+    // Felt over 1000 s, the grip is still near the fresh tyres' after four laps, much nearer than the
+    // weakest (worn) tyre is.
+    VehicleParams slow;
+    stint_of(0.12, 1000.0, &slow);
+    const double fresh = vehicle.tyre.base_grip * std::min(physics::tyres::fresh(vehicle.tyre_condition.front).grip,
+                                                           physics::tyres::fresh(vehicle.tyre_condition.rear).grip);
+    EXPECT_LT(std::abs(slow.tyre.base_grip - fresh), 0.5 * std::abs(now.tyre.base_grip - fresh));
+}

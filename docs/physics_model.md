@@ -280,10 +280,10 @@ Both are off by default. Without them the car is the same on every lap, and a st
 
 The simulator drives with the car *as it is now* (`Simulator::vehicle_now()`):
 - its mass, with the fuel left;
-- its friction, the tyres' times the weaker axle's condition for cornering and braking (the axle that lets go first sets the limit);
-- its drive's traction limit, times the driven axle's condition and the car's weight against its starting weight.
+- its friction, the tyres' times the weakest tyre's condition for cornering and braking: the driver drives to the tyre that would let go first, feeling its grip over `feel_time` seconds (a first-order lag; 0: at once);
+- its drive's traction limit, times the driven axle's condition (its two tyres' mean) and the car's weight against its starting weight.
 
-The braking envelope is planned again at every line, and whenever the tyres' grip has moved by 0.5 % since it was last planned, so the driver never counts on grip the tyres no longer have.
+The braking envelope is planned again at every line, and once the grip has moved 2 % since the last plan. In between, the driver takes the envelope's speeds times √(grip now ÷ grip planned): corner speeds and braking distances go with the square root of the grip, as a driver feels a tyre going off. The tyres are updated every 10 ms; their temperatures move over seconds.
 
 ### Fuel (`FuelParams`)
 
@@ -295,18 +295,20 @@ The fuel's mass is on top of `VehicleParams::mass`.
 
 ### Tyre condition (`TyreConditionParams`)
 
-One representative tyre per axle, with half the axle's load and forces. Each has a tread and a carcass temperature, wear, and a pressure.
+Four tyres, a left and a right on each axle (`CarState::tyres`, in `TyreIndex` order). Each has a tread and a carcass temperature, wear, and a pressure.
 
 **Loads and forces.** The weight splits by `weight_front`, the downforce by `aero_front`, and acceleration moves `m·a·h/L` onto the rear. A steady corner's yaw balance shares the lateral force by the static weight on each axle. Braking splits by `brake_front`, and driving is all on the driven axle.
+
+**Across each axle** a corner moves load onto the outside tyre: `ΔN = lateral_transfer · m · a_y` (`AxleTyres::lateral_transfer`, N per N of the car's lateral force), with `a_y = v² κ cos θ − g sin θ` towards the left. A positive curvature turns left and loads the right-hand tyres. For a car in steady roll the transfer is the axle's share of the roll stiffness, `(h − h_roll axis) · K / ΣK / track`, plus `w·h_rc / track` if its links carry the side force at the roll centre; 0 leaves both tyres alike. Both tyres of an axle slip alike, so each takes the axle's forces, and its sliding work, in proportion to its load times its grip.
 
 **Sliding work.** A point mass has no slip, so the slip is inferred from the grip each axle uses. The tyre's force rises with its normalised slip s as 2s − s² up to its peak at s = 1, so an axle using a share u of its grip slides at
 
 ```
 s = 1 − √(1 − u)
-P_slide = ½ (|F_x| · s_x · κ_peak + |F_y| · tan(s_y · α_peak)) · v · sliding_work
+P_slide = (|F_x| · s_x · κ_peak + |F_y| · tan(s_y · α_peak)) · v · sliding_work_axle     (both tyres)
 ```
 
-with the slip shared between the two directions as the forces' shares of the grip are. `sliding_work` is for a calibration to scale.
+with the slip shared between the two directions as the forces' shares of the grip are, and the axle's grip its tyres' own friction times their condition, each by its load. The grip used is measured against each axle's own friction (`AxleTyres::mu_lateral`, `mu_longitudinal`; TyreParams' when 0): a car whose TyreParams are lowered to a driver's pace still uses only that share of its tyres. Each axle's `sliding_work` is for a calibration to scale. A driver or traction control holds a driven axle below its peak slip, and steering slip works the front harder than its share of the force says, so the two axles need scales of their own.
 
 **Heat** (per tyre):
 
