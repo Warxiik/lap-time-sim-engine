@@ -99,6 +99,7 @@ The simulation implements a point-mass model with:
 - **Longitudinal dynamics**: Engine torque curves, gear ratios, braking, all within the tyres' grip
 - **Tyre model**: Friction ellipse, with the tyres' lateral and longitudinal friction (`tyre` in the vehicle JSON) times the surface's grip
 - **Driver**: A backward braking envelope computed once per lap; the time integration is the forward pass
+- **Stints** (optional): laps one after another, burning fuel (brake-specific consumption) and heating, wearing and inflating the four tyres (the corners load the outside ones), which lose grip off their temperature, pressure and tread; the driver drives to the weakest
 - **Integration**: Semi-implicit Euler with fixed 1ms timestep
 
 See [docs/physics_model.md](docs/physics_model.md) for complete equations.

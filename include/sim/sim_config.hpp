@@ -12,4 +12,7 @@ struct SimConfig {
 
     // Node spacing of the braking envelope along the track (m).
     meters envelope_spacing = 0.5;
+
+    // Timed laps one after another (a stint): fuel and tyres carry from each to the next.
+    int laps = 1;
 };

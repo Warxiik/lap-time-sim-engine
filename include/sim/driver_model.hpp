@@ -53,6 +53,8 @@ public:
      * @param segment The track segment the car is in
      * @param envelope The car's braking envelope on this track
      * @param dt Time step the inputs will be held for (s)
+     * @param envelope_scale The envelope's speeds times this: √ of the grip
+     *        now over the grip it was planned with (1 when it never changes)
      * @return Control inputs (throttle, brake normalized to [0,1])
      */
     [[nodiscard]] ControlInput compute_control(
@@ -60,7 +62,8 @@ public:
         const VehicleParams& vehicle,
         const TrackSegment& segment,
         const BrakingEnvelope& envelope,
-        double dt) const;
+        double dt,
+        double envelope_scale = 1.0) const;
 
     /**
      * @brief The gear with the most drive force at the car's speed.
