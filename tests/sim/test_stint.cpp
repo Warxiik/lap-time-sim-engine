@@ -140,13 +140,13 @@ TEST(Stint, FuelBurnsAndTheCarGetsFaster) {
 /**
  * @test The tyres come up to temperature over the first laps, settle, wear lap after lap, and once the
  * tread is worn through to its cliff the laps get slower faster. (This car works its driven rear tyres
- * hard: they wear about a tenth of their tread a lap.)
+ * hard: they wear about a tenth of their tread a lap, and reach the cliff on the eighth.)
  */
 TEST(Stint, TyresWarmUpWearAndFallOffTheCliff) {
     const Track track = create_test_track();
     VehicleParams vehicle = with_consumables(create_test_vehicle());
     vehicle.fuel = FuelParams{};  // tyres alone
-    Simulator sim(track, vehicle, stint(8));
+    Simulator sim(track, vehicle, stint(9));
     sim.run();
     ASSERT_TRUE(sim.completed());
     const auto& laps = sim.laps();
@@ -162,7 +162,7 @@ TEST(Stint, TyresWarmUpWearAndFallOffTheCliff) {
     ASSERT_LT(laps.back().rear.wear, 1.0);
     EXPECT_GT(laps.back().time, laps[2].time + 0.3);
     const double early = laps[3].time - laps[2].time;
-    const double late = laps[7].time - laps[6].time;
+    const double late = laps[8].time - laps[7].time;
     EXPECT_GT(late, early);
     // Pressure follows the carcass.
     EXPECT_DOUBLE_EQ(laps.back().rear.pressure, physics::tyres::hot_pressure(vehicle.tyre_condition.rear.thermal, laps.back().rear.carcass_temp));
