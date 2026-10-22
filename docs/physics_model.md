@@ -260,7 +260,7 @@ throttle = F_needed / F_engine         (F_needed ≥ 0)
 brake    = −F_needed / max_brake_force (F_needed < 0)
 ```
 
-Nothing clamps the speed. The car reaches each corner at its limit because it braked in time; a car forced in too fast would have no grip left to brake with and would carry its speed through.
+The car reaches each corner at its limit because it braked in time, and nothing cuts a car that does. A car that reaches a corner too fast anyway (its grip fell while it was on full brake, and in a bend the more it is behind the less grip it has left to brake with) loses the excess there: a point mass cannot run wide, and carrying the speed through let it go round faster than its tyres allow, so that falling behind paid.
 
 ---
 

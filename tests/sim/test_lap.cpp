@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "sim/simulator.hpp"
+#include "sim/step.hpp"
 #include "physics/lateral.hpp"
 #include "physics/tyre_model.hpp"
 #include "physics/vehicle_dynamics.hpp"
@@ -79,7 +80,39 @@ static const TrackSegment& segment_at(const Track& track, double s) {
 }
 
 /**
- * @test Nothing clamps the speed, and the car still keeps within its grip in every corner.
+ * @test A car over a corner's limit loses the excess there (step.cpp), whatever its pedals; under it, and on a
+ * straight, only the forces move it.
+ */
+TEST(Lap, ACarOverTheCornersLimitLosesTheExcess) {
+    const VehicleParams vehicle = create_test_vehicle();
+    const TrackSegment hairpin{94.2, 0.0333, 1.0, 0.0};
+    const double limit = physics::lateral::max_speed(hairpin, vehicle);
+    for (const ControlInput control : {ControlInput{1.0, 0.0}, ControlInput{0.0, 0.0}, ControlInput{0.0, 1.0}}) {
+        CarState state{};
+        state.v = 1.2 * limit;
+        state.gear = 2;
+        step::advance(state, vehicle, hairpin, control, 0.001);
+        EXPECT_EQ(state.v, limit);
+    }
+    // Just under it: the step's own forces.
+    CarState under{};
+    under.v = 0.9 * limit;
+    under.gear = 2;
+    CarState reference = under;
+    step::advance(under, vehicle, hairpin, ControlInput{0.0, 0.0}, 0.001);
+    physics::step_longitudinal(reference, vehicle, hairpin, 0.0, 0.0, 0.001);
+    EXPECT_EQ(under.v, reference.v);
+    // A straight has no limit.
+    CarState fast{};
+    fast.v = 90.0;
+    fast.gear = 5;
+    step::advance(fast, vehicle, TrackSegment{100.0, 0.0, 1.0, 0.0}, ControlInput{0.0, 0.0}, 0.001);
+    EXPECT_GT(fast.v, 89.9);
+}
+
+/**
+ * @test The car keeps within its grip in every corner by braking in time: it never reaches one over its limit,
+ * where it would lose the excess.
  */
 TEST(Lap, KeepsWithinTheCornerLimitWithoutAClamp) {
     const Track track = create_test_track();
