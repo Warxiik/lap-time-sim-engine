@@ -63,8 +63,14 @@ void advance(CarState& state,
     // Ensure velocity doesn't go negative (no reversing in this model)
     state.v = std::max(0.0, state.v);
 
-    // Over the corner's limit: the excess is lost (above)
-    state.v = std::min(state.v, physics::lateral::max_speed(segment, vehicle));
+    // Over the corner's limit: the excess is lost (above), and the step's acceleration and engine speed are the
+    // car's after it. A corner held at no speed at all (no grip) cuts nothing: the car would never leave it.
+    const double limit = physics::lateral::max_speed(segment, vehicle);
+    if (limit > 0.0 && state.v > limit) {
+        state.a -= (state.v - limit) / dt;
+        state.v = limit;
+        state.engine_rpm = physics::engine_rpm(state.v, state.gear, vehicle);
+    }
 }
 
 } // namespace step

@@ -93,7 +93,16 @@ TEST(Lap, ACarOverTheCornersLimitLosesTheExcess) {
         state.gear = 2;
         step::advance(state, vehicle, hairpin, control, 0.001);
         EXPECT_EQ(state.v, limit);
+        // The step's acceleration takes the speed lost, and the engine turns at the speed the car has.
+        EXPECT_NEAR(state.a, (limit - 1.2 * limit) / 0.001, 0.2 * limit / 0.001 * 0.05);
+        EXPECT_DOUBLE_EQ(state.engine_rpm, physics::engine_rpm(limit, 2, vehicle));
     }
+    // A corner with no grip has no speed it can be held at: the car is not stopped dead in it.
+    CarState sliding{};
+    sliding.v = 20.0;
+    sliding.gear = 2;
+    step::advance(sliding, vehicle, TrackSegment{94.2, 0.0333, 0.0, 0.0}, ControlInput{0.0, 0.0}, 0.001);
+    EXPECT_GT(sliding.v, 19.9);
     // Just under it: the step's own forces.
     CarState under{};
     under.v = 0.9 * limit;
